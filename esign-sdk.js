@@ -9,7 +9,6 @@ class ESIGNComponent extends HTMLElement {
   connectedCallback() {
     // Fetch attributes from the custom element
     const sessionToken = this.getAttribute("session-token");
-    const documentId = this.getAttribute("document-id");
     this.devMode = this.hasAttribute("dev-mode");
 
     if (!sessionToken) {
@@ -17,6 +16,9 @@ class ESIGNComponent extends HTMLElement {
       this.renderError("Missing session token");
       return;
     }
+
+    // Decode session details from JWT (for display only)
+    const sessionDetails = this.decodeSessionToken(sessionToken);
 
     // Render initial UI
     this.shadowRoot.innerHTML = `
@@ -55,7 +57,7 @@ class ESIGNComponent extends HTMLElement {
       </style>
       <div class="esign-container">
         <div class="dev-mode-badge">Dev Mode</div>
-        <p>Ready to sign document ID: ${documentId}</p>
+        <p>Ready to sign document ID: ${sessionDetails.documentId}</p>
         <button class="esign-button" id="start-signing">Start Signing</button>
       </div>
     `;
@@ -63,9 +65,20 @@ class ESIGNComponent extends HTMLElement {
     // Add click listener for signing button
     this.shadowRoot
       .getElementById("start-signing")
-      .addEventListener("click", () =>
-        this.startSigning(sessionToken, documentId)
-      );
+      .addEventListener("click", () => this.startSigning(sessionToken));
+  }
+
+  // Decode JWT for display purposes only
+  decodeSessionToken(token) {
+    try {
+      const base64Url = token.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+      const payload = JSON.parse(window.atob(base64));
+      return payload;
+    } catch (error) {
+      console.error("Error decoding session token:", error);
+      return { documentId: "Unknown" };
+    }
   }
 
   renderError(message) {
@@ -76,7 +89,7 @@ class ESIGNComponent extends HTMLElement {
     `;
   }
 
-  async startSigning(sessionToken, documentId) {
+  async startSigning(sessionToken) {
     try {
       let result;
 
@@ -92,7 +105,7 @@ class ESIGNComponent extends HTMLElement {
             "Content-Type": "application/json",
             Authorization: `Bearer ${sessionToken}`,
           },
-          body: JSON.stringify({ documentId }),
+          body: JSON.stringify({ documentId: sessionDetails.documentId }),
         });
 
         if (!response.ok) {

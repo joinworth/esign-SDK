@@ -32,56 +32,37 @@ Check out the [live demo](https://joinworth.github.io/esign-SDK/example.html)
 
 ### Step 2: Generate a Session Token
 
-On your backend, make a request to the ESIGN API service to generate a session token:
+First, get a session token from the ESIGN API using your API key:
 
-```javascript
-// Example backend code (Node.js)
-async function getSigningSession(apiKey, documentId, userId) {
-  try {
-    const response = await fetch("https://api.esign.com/v1/sessions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        documentId,
-        userId,
-        expiresIn: "15m", // Request 15-minute session
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to generate signing session");
-    }
-
-    const { sessionToken } = await response.json();
-    return sessionToken;
-  } catch (error) {
-    console.error("Error generating signing session:", error);
-    throw error;
-  }
-}
-
-// Example usage
-
-const apiKey = process.env.ESIGN_API_KEY;
-
-const sessionToken = await getSigningSession(apiKey, documentId, userId);
+```bash
+curl -X POST https://api.esign.com/v1/sessions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{
+    "documentId": "doc_123",
+    "userId": "user_456"
+  }'
 ```
 
-The session token returned by the API is a short-lived JWT that can be safely passed to the frontend. This token will expire after 15 minutes and can only be used for the specified document and user.
+Response:
+
+```json
+{
+  "sessionToken": "eyJhbGciOiJIUzI1...",
+  "expiresAt": "2024-03-21T12:00:00Z"
+}
+```
+
+The session token is a short-lived JWT that expires after 2 hours and contains all necessary signing session details.
 
 ### Step 3: Add the Web Component
 
 ```html
 <!-- Production Mode -->
-<esign-component session-token="your-jwt-token" document-id="12345">
-</esign-component>
+<esign-component session-token="your-jwt-token"></esign-component>
 
 <!-- Developer Mode -->
-<esign-component session-token="your-jwt-token" document-id="12345" dev-mode>
-</esign-component>
+<esign-component session-token="your-jwt-token" dev-mode></esign-component>
 ```
 
 ### Security Considerations

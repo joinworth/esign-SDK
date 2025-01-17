@@ -48,20 +48,21 @@
     <div class="example-section">
       <h2>Developer Mode Implementation</h2>
       <div class="code-snippet">
-        &lt;esign-component api-key="dev-api-key-123" document-id="DOC001"
-        dev-mode &gt;&lt;/esign-component&gt;
+        &lt;esign-component
+        session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        document-id="DOC001" dev-mode &gt;&lt;/esign-component&gt;
       </div>
       <div class="implementation">
         <esign-component
-          api-key="dev-api-key-123"
+          session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
           document-id="DOC001"
           dev-mode
         ></esign-component>
       </div>
       <div class="note">
-        <strong>Note:</strong> This example runs in developer mode, where the
-        signing process is mocked and no actual API calls are made. Check the
-        browser console to see the mock API interactions.
+        <strong>Note:</strong> This example runs in developer mode with a sample
+        JWT token. In production, you should generate a short-lived session
+        token from your backend.
       </div>
     </div>
 
