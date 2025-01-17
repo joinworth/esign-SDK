@@ -2,6 +2,10 @@
 
 A lightweight JavaScript library that provides a custom web component `<esign-component>` for embedding ESIGN workflows into your web applications.
 
+## Live Demo
+
+Check out the [live demo](https://joinworth.github.io/esign-SDK/example.html)
+
 ## Features
 
 - Simple integration with just a few lines of code.
