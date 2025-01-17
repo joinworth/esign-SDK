@@ -8,10 +8,15 @@ class ESIGNComponent extends HTMLElement {
 
   connectedCallback() {
     // Fetch attributes from the custom element
-    const apiKey = this.getAttribute("api-key");
+    const sessionToken = this.getAttribute("session-token");
     const documentId = this.getAttribute("document-id");
-    // Add dev-mode attribute
     this.devMode = this.hasAttribute("dev-mode");
+
+    if (!sessionToken) {
+      console.error("ESIGNComponent: session-token is required");
+      this.renderError("Missing session token");
+      return;
+    }
 
     // Render initial UI
     this.shadowRoot.innerHTML = `
@@ -43,6 +48,10 @@ class ESIGNComponent extends HTMLElement {
           margin-bottom: 10px;
           display: ${this.devMode ? "inline-block" : "none"};
         }
+        .error-message {
+          color: #dc3545;
+          margin: 10px 0;
+        }
       </style>
       <div class="esign-container">
         <div class="dev-mode-badge">Dev Mode</div>
@@ -54,10 +63,20 @@ class ESIGNComponent extends HTMLElement {
     // Add click listener for signing button
     this.shadowRoot
       .getElementById("start-signing")
-      .addEventListener("click", () => this.startSigning(apiKey, documentId));
+      .addEventListener("click", () =>
+        this.startSigning(sessionToken, documentId)
+      );
   }
 
-  async startSigning(apiKey, documentId) {
+  renderError(message) {
+    this.shadowRoot.innerHTML = `
+      <div class="esign-container">
+        <div class="error-message">${message}</div>
+      </div>
+    `;
+  }
+
+  async startSigning(sessionToken, documentId) {
     try {
       let result;
 
@@ -66,12 +85,12 @@ class ESIGNComponent extends HTMLElement {
         console.log("Dev mode: Mocking signing API call");
         result = await this.mockSigningProcess();
       } else {
-        // Real API call
+        // Real API call with JWT
         const response = await fetch("https://your-api.com/sign", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${sessionToken}`,
           },
           body: JSON.stringify({ documentId }),
         });
