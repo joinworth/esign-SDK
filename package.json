@@ -1,0 +1,16 @@
+{
+  "name": "@yourusername/esign-sdk",
+  "version": "1.0.0",
+  "description": "Electronic signature web component SDK",
+  "main": "esign-sdk.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "esign",
+    "web-component",
+    "signature"
+  ],
+  "author": "Jacques Fu",
+  "license": "MIT"
+}
