@@ -58,12 +58,44 @@ The session token is a short-lived JWT that expires after 2 hours and contains a
 ### Step 3: Add the Web Component
 
 ```html
-<!-- Production Mode -->
+<!-- Basic Usage -->
 <esign-component session-token="your-jwt-token"></esign-component>
 
-<!-- Developer Mode -->
-<esign-component session-token="your-jwt-token" dev-mode></esign-component>
+<!-- With Template and Fields -->
+<esign-component
+  session-token="your-jwt-token"
+  template-id="template_123"
+  full-legal-name="Acme Corp LLC"
+  signer-email="john@example.com"
+  signer-full-name="John Smith"
+  signer-title="CEO"
+  address-1="123 Main St"
+  address-2="Suite 100"
+  city="San Francisco"
+  state="CA"
+  zip="94105"
+  tin="12-3456789"
+  dev-mode
+></esign-component>
 ```
+
+### Available Attributes
+
+| Attribute        | Required | Description                        |
+| ---------------- | -------- | ---------------------------------- |
+| session-token    | Yes      | JWT token from the session API     |
+| template-id      | No       | ID of the document template to use |
+| full-legal-name  | No       | Legal name of the signing entity   |
+| signer-email     | No       | Email of the signer                |
+| signer-full-name | No       | Full name of the signer            |
+| signer-title     | No       | Title/position of the signer       |
+| address-1        | No       | Primary address line               |
+| address-2        | No       | Secondary address line             |
+| city             | No       | City                               |
+| state            | No       | State/Province                     |
+| zip              | No       | ZIP/Postal code                    |
+| tin              | No       | Tax Identification Number          |
+| dev-mode         | No       | Enable development mode            |
 
 ### Security Considerations
 

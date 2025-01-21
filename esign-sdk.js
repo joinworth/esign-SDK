@@ -11,6 +11,21 @@ class ESIGNComponent extends HTMLElement {
     const sessionToken = this.getAttribute("session-token");
     this.devMode = this.hasAttribute("dev-mode");
 
+    // Get optional field values
+    this.fields = {
+      templateId: this.getAttribute("template-id"),
+      fullLegalName: this.getAttribute("full-legal-name"),
+      signerEmail: this.getAttribute("signer-email"),
+      signerFullName: this.getAttribute("signer-full-name"),
+      signerTitle: this.getAttribute("signer-title"),
+      address1: this.getAttribute("address-1"),
+      address2: this.getAttribute("address-2"),
+      city: this.getAttribute("city"),
+      state: this.getAttribute("state"),
+      zip: this.getAttribute("zip"),
+      tin: this.getAttribute("tin"),
+    };
+
     if (!sessionToken) {
       console.error("ESIGNComponent: session-token is required");
       this.renderError("Missing session token");
@@ -54,10 +69,30 @@ class ESIGNComponent extends HTMLElement {
           color: #dc3545;
           margin: 10px 0;
         }
+        .field-preview {
+          text-align: left;
+          margin: 10px 0;
+          padding: 10px;
+          background: #f8f9fa;
+          border-radius: 4px;
+          font-size: 14px;
+        }
+        .field-preview h3 {
+          margin: 0 0 10px 0;
+          font-size: 16px;
+        }
+        .field-row {
+          margin: 5px 0;
+        }
+        .field-label {
+          font-weight: bold;
+          color: #666;
+        }
       </style>
       <div class="esign-container">
         <div class="dev-mode-badge">Dev Mode</div>
         <p>Ready to sign document ID: ${sessionDetails.documentId}</p>
+        ${this.renderFieldPreview()}
         <button class="esign-button" id="start-signing">Start Signing</button>
       </div>
     `;
@@ -66,6 +101,38 @@ class ESIGNComponent extends HTMLElement {
     this.shadowRoot
       .getElementById("start-signing")
       .addEventListener("click", () => this.startSigning(sessionToken));
+  }
+
+  renderFieldPreview() {
+    if (!this.devMode) return "";
+
+    const populatedFields = Object.entries(this.fields)
+      .filter(([_, value]) => value)
+      .map(
+        ([key, value]) => `
+        <div class="field-row">
+          <span class="field-label">${this.formatFieldName(key)}:</span> 
+          ${value}
+        </div>
+      `
+      )
+      .join("");
+
+    return populatedFields
+      ? `
+      <div class="field-preview">
+        <h3>Template Fields</h3>
+        ${populatedFields}
+      </div>
+    `
+      : "";
+  }
+
+  formatFieldName(key) {
+    return key
+      .replace(/([A-Z])/g, " $1")
+      .replace(/^./, (str) => str.toUpperCase())
+      .replace(/([0-9])/g, " $1");
   }
 
   // Decode JWT for display purposes only
@@ -94,18 +161,22 @@ class ESIGNComponent extends HTMLElement {
       let result;
 
       if (this.devMode) {
-        // Mock API response in dev mode
-        console.log("Dev mode: Mocking signing API call");
+        console.log("Dev mode: Mocking signing API call", {
+          sessionToken,
+          fields: this.fields,
+        });
         result = await this.mockSigningProcess();
       } else {
-        // Real API call with JWT
         const response = await fetch("https://your-api.com/sign", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${sessionToken}`,
           },
-          body: JSON.stringify({ documentId: sessionDetails.documentId }),
+          body: JSON.stringify({
+            ...this.fields,
+            documentId: this.decodeSessionToken(sessionToken).documentId,
+          }),
         });
 
         if (!response.ok) {
@@ -115,7 +186,6 @@ class ESIGNComponent extends HTMLElement {
         result = await response.json();
       }
 
-      // Handle signing result
       alert(`Signing completed: ${result.status}`);
     } catch (error) {
       console.error("Error during signing process:", error);
@@ -123,16 +193,14 @@ class ESIGNComponent extends HTMLElement {
     }
   }
 
-  // Add mock signing process
   async mockSigningProcess() {
-    // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 1000));
-
     return {
       status: "SUCCESS",
-      documentId: this.getAttribute("document-id"),
+      documentId: this.decodeSessionToken(sessionToken).documentId,
       timestamp: new Date().toISOString(),
       mockData: true,
+      fields: this.fields,
     };
   }
 }
