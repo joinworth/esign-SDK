@@ -67,26 +67,26 @@
       <div class="code-snippet">
         &lt;esign-component
         session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-        template-id="template_123" full-legal-name="Acme Corp LLC"
-        signer-email="john@example.com" signer-full-name="John Smith"
-        signer-title="CEO" address-1="123 Main St" address-2="Suite 100"
-        city="San Francisco" state="CA" zip="94105" tin="12-3456789" dev-mode
-        &gt;&lt;/esign-component&gt;
+        template-id="template_123" signer-email="john@example.com"
+        signer-full-name="John Smith" signer-title="CEO" doc_legal_name="Acme
+        Corp LLC" doc_address_line_1="123 Main St" doc_address_line_2="Suite
+        100" doc_city="San Francisco" doc_state="CA" doc_zip="94105"
+        doc_tax_id="12-3456789" dev-mode &gt;&lt;/esign-component&gt;
       </div>
       <div class="implementation">
         <esign-component
           session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
           template-id="template_123"
-          full-legal-name="Acme Corp LLC"
           signer-email="john@example.com"
           signer-full-name="John Smith"
           signer-title="CEO"
-          address-1="123 Main St"
-          address-2="Suite 100"
-          city="San Francisco"
-          state="CA"
-          zip="94105"
-          tin="12-3456789"
+          doc_legal_name="Acme Corp LLC"
+          doc_address_line_1="123 Main St"
+          doc_address_line_2="Suite 100"
+          doc_city="San Francisco"
+          doc_state="CA"
+          doc_zip="94105"
+          doc_tax_id="12-3456789"
           dev-mode
         ></esign-component>
       </div>

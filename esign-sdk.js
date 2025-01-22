@@ -7,24 +7,21 @@ class ESIGNComponent extends HTMLElement {
   }
 
   connectedCallback() {
-    // Fetch attributes from the custom element
     const sessionToken = this.getAttribute("session-token");
     this.devMode = this.hasAttribute("dev-mode");
 
-    // Get optional field values
-    this.fields = {
-      templateId: this.getAttribute("template-id"),
-      fullLegalName: this.getAttribute("full-legal-name"),
-      signerEmail: this.getAttribute("signer-email"),
-      signerFullName: this.getAttribute("signer-full-name"),
-      signerTitle: this.getAttribute("signer-title"),
-      address1: this.getAttribute("address-1"),
-      address2: this.getAttribute("address-2"),
-      city: this.getAttribute("city"),
-      state: this.getAttribute("state"),
-      zip: this.getAttribute("zip"),
-      tin: this.getAttribute("tin"),
+    // Get signer information (required fields)
+    this.signerFields = {
+      email: this.getAttribute("signer-email"),
+      fullName: this.getAttribute("signer-full-name"),
+      title: this.getAttribute("signer-title"),
     };
+
+    // Get template information
+    this.templateId = this.getAttribute("template-id");
+
+    // Dynamically collect document fields (prefixed with doc_)
+    this.documentFields = this.getDocumentFields();
 
     if (!sessionToken) {
       console.error("ESIGNComponent: session-token is required");
@@ -97,16 +94,45 @@ class ESIGNComponent extends HTMLElement {
       </div>
     `;
 
-    // Add click listener for signing button
     this.shadowRoot
       .getElementById("start-signing")
       .addEventListener("click", () => this.startSigning(sessionToken));
   }
 
+  getDocumentFields() {
+    const fields = {};
+    const documentAttributes = Array.from(this.attributes)
+      .filter((attr) => attr.name.startsWith("doc_"))
+      .forEach((attr) => {
+        // Convert doc_legal_name to legalName
+        const fieldName = attr.name
+          .replace("doc_", "")
+          .replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+        fields[fieldName] = attr.value;
+      });
+    return fields;
+  }
+
   renderFieldPreview() {
     if (!this.devMode) return "";
 
-    const populatedFields = Object.entries(this.fields)
+    const sections = [];
+
+    // Add template ID if present
+    if (this.templateId) {
+      sections.push(`
+        <div class="field-section">
+          <h3>Template</h3>
+          <div class="field-row">
+            <span class="field-label">Template ID:</span> 
+            ${this.templateId}
+          </div>
+        </div>
+      `);
+    }
+
+    // Add signer fields if any are present
+    const populatedSignerFields = Object.entries(this.signerFields)
       .filter(([_, value]) => value)
       .map(
         ([key, value]) => `
@@ -118,13 +144,38 @@ class ESIGNComponent extends HTMLElement {
       )
       .join("");
 
-    return populatedFields
-      ? `
-      <div class="field-preview">
-        <h3>Template Fields</h3>
-        ${populatedFields}
-      </div>
-    `
+    if (populatedSignerFields) {
+      sections.push(`
+        <div class="field-section">
+          <h3>Signer Information</h3>
+          ${populatedSignerFields}
+        </div>
+      `);
+    }
+
+    // Add document fields if any are present
+    const populatedDocFields = Object.entries(this.documentFields)
+      .map(
+        ([key, value]) => `
+        <div class="field-row">
+          <span class="field-label">${this.formatFieldName(key)}:</span> 
+          ${value}
+        </div>
+      `
+      )
+      .join("");
+
+    if (populatedDocFields) {
+      sections.push(`
+        <div class="field-section">
+          <h3>Document Fields</h3>
+          ${populatedDocFields}
+        </div>
+      `);
+    }
+
+    return sections.length
+      ? `<div class="field-preview">${sections.join("")}</div>`
       : "";
   }
 
@@ -163,9 +214,11 @@ class ESIGNComponent extends HTMLElement {
       if (this.devMode) {
         console.log("Dev mode: Mocking signing API call", {
           sessionToken,
-          fields: this.fields,
+          templateId: this.templateId,
+          signer: this.signerFields,
+          documentFields: this.documentFields,
         });
-        result = await this.mockSigningProcess();
+        result = await this.mockSigningProcess(sessionToken);
       } else {
         const response = await fetch("https://your-api.com/sign", {
           method: "POST",
@@ -174,7 +227,9 @@ class ESIGNComponent extends HTMLElement {
             Authorization: `Bearer ${sessionToken}`,
           },
           body: JSON.stringify({
-            ...this.fields,
+            templateId: this.templateId,
+            signer: this.signerFields,
+            documentFields: this.documentFields,
             documentId: this.decodeSessionToken(sessionToken).documentId,
           }),
         });
@@ -193,14 +248,16 @@ class ESIGNComponent extends HTMLElement {
     }
   }
 
-  async mockSigningProcess() {
+  async mockSigningProcess(sessionToken) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     return {
       status: "SUCCESS",
       documentId: this.decodeSessionToken(sessionToken).documentId,
       timestamp: new Date().toISOString(),
       mockData: true,
-      fields: this.fields,
+      templateId: this.templateId,
+      signer: this.signerFields,
+      documentFields: this.documentFields,
     };
   }
 }
