@@ -39,8 +39,22 @@ curl -X POST https://api.esign.com/v1/sessions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
-    "documentId": "doc_123",
-    "userId": "user_456"
+    "templateId": "template_123",
+    "signer": {
+      "id": "user_123",
+      "email": "john@example.com",
+      "fullName": "John Smith",
+      "title": "CEO"
+    },
+    "documentFields": {
+      "legalName": "Acme Corp LLC",
+      "addressLine1": "123 Main St",
+      "addressLine2": "Suite 100",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94105",
+      "taxId": "12-3456789"
+    }
   }'
 ```
 
@@ -53,30 +67,13 @@ Response:
 }
 ```
 
-The session token is a short-lived JWT that expires after 2 hours and contains all necessary signing session details.
+The session token is a short-lived JWT that contains all signing session details and expires after 2 hours.
 
 ### Step 3: Add the Web Component
 
 ```html
-<!-- Basic Usage -->
-<esign-component session-token="your-jwt-token"></esign-component>
-
-<!-- With Template and Fields -->
-<esign-component
-  session-token="your-jwt-token"
-  template-id="template_123"
-  full-legal-name="Acme Corp LLC"
-  signer-email="john@example.com"
-  signer-full-name="John Smith"
-  signer-title="CEO"
-  address-1="123 Main St"
-  address-2="Suite 100"
-  city="San Francisco"
-  state="CA"
-  zip="94105"
-  tin="12-3456789"
-  dev-mode
-></esign-component>
+<!-- Basic Usage - All signer and document data is encoded in the session token -->
+<esign-component session-token="your-jwt-token" dev-mode></esign-component>
 ```
 
 ### Available Attributes

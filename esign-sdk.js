@@ -13,21 +13,6 @@ class ESIGNComponent extends HTMLElement {
     const sessionToken = this.getAttribute("session-token");
     this.devMode = this.hasAttribute("dev-mode");
 
-    // Collect signer information from attributes
-    // These are standard fields that are required for any signing workflow
-    this.signerFields = {
-      email: this.getAttribute("signer-email"),
-      fullName: this.getAttribute("signer-full-name"),
-      title: this.getAttribute("signer-title"),
-    };
-
-    // Template ID is used to specify which document template to populate
-    this.templateId = this.getAttribute("template-id");
-
-    // Collect all document-specific fields (prefixed with doc_)
-    // These fields will be used to populate the template
-    this.documentFields = this.getDocumentFields();
-
     // Validate required session token
     if (!sessionToken) {
       console.error("ESIGNComponent: session-token is required");
@@ -35,8 +20,19 @@ class ESIGNComponent extends HTMLElement {
       return;
     }
 
-    // Extract document information from the JWT for display
+    // Extract all session information from the JWT
     const sessionDetails = this.decodeSessionToken(sessionToken);
+
+    // Validate session data
+    if (!this.validateSessionDetails(sessionDetails)) {
+      this.renderError("Invalid session token");
+      return;
+    }
+
+    // Store session data
+    this.templateId = sessionDetails.templateId;
+    this.signerFields = sessionDetails.signer;
+    this.documentFields = sessionDetails.documentFields;
 
     // Render the component's UI
     this.shadowRoot.innerHTML = `
@@ -109,6 +105,22 @@ class ESIGNComponent extends HTMLElement {
     this.shadowRoot
       .getElementById("start-signing")
       .addEventListener("click", () => this.startSigning(sessionToken));
+  }
+
+  /**
+   * Validates that the session token contains all required information
+   * @param {Object} details Decoded session details
+   * @returns {boolean} Whether the session is valid
+   */
+  validateSessionDetails(details) {
+    return !!(
+      details &&
+      details.documentId &&
+      details.templateId &&
+      details.signer?.id &&
+      details.signer?.email &&
+      details.signer?.fullName
+    );
   }
 
   /**
