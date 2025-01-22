@@ -1,8 +1,11 @@
-// esign-sdk.js
+// esign-sdk.js - Web Component for electronic document signing
+// This component handles document signing workflows with template-based document generation
+// and field population capabilities.
 
 class ESIGNComponent extends HTMLElement {
   constructor() {
     super();
+    // Create a shadow DOM for style encapsulation
     this.attachShadow({ mode: "open" });
   }
 
@@ -10,31 +13,35 @@ class ESIGNComponent extends HTMLElement {
     const sessionToken = this.getAttribute("session-token");
     this.devMode = this.hasAttribute("dev-mode");
 
-    // Get signer information (required fields)
+    // Collect signer information from attributes
+    // These are standard fields that are required for any signing workflow
     this.signerFields = {
       email: this.getAttribute("signer-email"),
       fullName: this.getAttribute("signer-full-name"),
       title: this.getAttribute("signer-title"),
     };
 
-    // Get template information
+    // Template ID is used to specify which document template to populate
     this.templateId = this.getAttribute("template-id");
 
-    // Dynamically collect document fields (prefixed with doc_)
+    // Collect all document-specific fields (prefixed with doc_)
+    // These fields will be used to populate the template
     this.documentFields = this.getDocumentFields();
 
+    // Validate required session token
     if (!sessionToken) {
       console.error("ESIGNComponent: session-token is required");
       this.renderError("Missing session token");
       return;
     }
 
-    // Decode session details from JWT (for display only)
+    // Extract document information from the JWT for display
     const sessionDetails = this.decodeSessionToken(sessionToken);
 
-    // Render initial UI
+    // Render the component's UI
     this.shadowRoot.innerHTML = `
       <style>
+        /* Container styles */
         .esign-container {
           font-family: Arial, sans-serif;
           border: 1px solid #ccc;
@@ -43,6 +50,7 @@ class ESIGNComponent extends HTMLElement {
           margin: auto;
           text-align: center;
         }
+        /* Primary action button */
         .esign-button {
           padding: 10px 20px;
           background-color: #007bff;
@@ -53,6 +61,7 @@ class ESIGNComponent extends HTMLElement {
         .esign-button:hover {
           background-color: #0056b3;
         }
+        /* Development mode indicator */
         .dev-mode-badge {
           background-color: #ffc107;
           color: #000;
@@ -62,10 +71,12 @@ class ESIGNComponent extends HTMLElement {
           margin-bottom: 10px;
           display: ${this.devMode ? "inline-block" : "none"};
         }
+        /* Error message styling */
         .error-message {
           color: #dc3545;
           margin: 10px 0;
         }
+        /* Field preview section styling */
         .field-preview {
           text-align: left;
           margin: 10px 0;
@@ -94,17 +105,23 @@ class ESIGNComponent extends HTMLElement {
       </div>
     `;
 
+    // Attach click handler for the signing button
     this.shadowRoot
       .getElementById("start-signing")
       .addEventListener("click", () => this.startSigning(sessionToken));
   }
 
+  /**
+   * Collects all attributes prefixed with 'doc_' and converts them to camelCase field names
+   * Example: doc_legal_name -> legalName
+   * @returns {Object} Collection of document fields
+   */
   getDocumentFields() {
     const fields = {};
     const documentAttributes = Array.from(this.attributes)
       .filter((attr) => attr.name.startsWith("doc_"))
       .forEach((attr) => {
-        // Convert doc_legal_name to legalName
+        // Convert doc_legal_name to legalName for API compatibility
         const fieldName = attr.name
           .replace("doc_", "")
           .replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
@@ -113,12 +130,17 @@ class ESIGNComponent extends HTMLElement {
     return fields;
   }
 
+  /**
+   * Renders a preview of all populated fields in development mode
+   * Groups fields by type: template, signer info, and document fields
+   * @returns {string} HTML string for field preview
+   */
   renderFieldPreview() {
     if (!this.devMode) return "";
 
     const sections = [];
 
-    // Add template ID if present
+    // Show template information if present
     if (this.templateId) {
       sections.push(`
         <div class="field-section">
@@ -131,7 +153,7 @@ class ESIGNComponent extends HTMLElement {
       `);
     }
 
-    // Add signer fields if any are present
+    // Show signer information if any fields are populated
     const populatedSignerFields = Object.entries(this.signerFields)
       .filter(([_, value]) => value)
       .map(
@@ -153,7 +175,7 @@ class ESIGNComponent extends HTMLElement {
       `);
     }
 
-    // Add document fields if any are present
+    // Show document fields if any are present
     const populatedDocFields = Object.entries(this.documentFields)
       .map(
         ([key, value]) => `
@@ -179,6 +201,12 @@ class ESIGNComponent extends HTMLElement {
       : "";
   }
 
+  /**
+   * Formats camelCase field names into readable labels
+   * Example: fullName -> Full Name
+   * @param {string} key The field name to format
+   * @returns {string} Formatted field name
+   */
   formatFieldName(key) {
     return key
       .replace(/([A-Z])/g, " $1")
@@ -186,7 +214,12 @@ class ESIGNComponent extends HTMLElement {
       .replace(/([0-9])/g, " $1");
   }
 
-  // Decode JWT for display purposes only
+  /**
+   * Decodes the JWT token to extract session information
+   * Note: This is for display purposes only, actual validation happens server-side
+   * @param {string} token JWT session token
+   * @returns {Object} Decoded token payload
+   */
   decodeSessionToken(token) {
     try {
       const base64Url = token.split(".")[1];
@@ -199,6 +232,10 @@ class ESIGNComponent extends HTMLElement {
     }
   }
 
+  /**
+   * Renders an error message in the component
+   * @param {string} message Error message to display
+   */
   renderError(message) {
     this.shadowRoot.innerHTML = `
       <div class="esign-container">
@@ -207,6 +244,12 @@ class ESIGNComponent extends HTMLElement {
     `;
   }
 
+  /**
+   * Initiates the signing process
+   * In dev mode: simulates the API call
+   * In production: makes actual API request with session token
+   * @param {string} sessionToken JWT session token
+   */
   async startSigning(sessionToken) {
     try {
       let result;
@@ -248,6 +291,11 @@ class ESIGNComponent extends HTMLElement {
     }
   }
 
+  /**
+   * Simulates the signing process for development testing
+   * @param {string} sessionToken JWT session token
+   * @returns {Object} Mock API response
+   */
   async mockSigningProcess(sessionToken) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     return {
@@ -262,5 +310,5 @@ class ESIGNComponent extends HTMLElement {
   }
 }
 
-// Define the custom element
+// Register the custom element with the browser
 customElements.define("esign-component", ESIGNComponent);
