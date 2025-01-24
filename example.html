@@ -50,50 +50,39 @@
       <h2>Basic Implementation</h2>
       <div class="code-snippet">
         &lt;esign-component
-        session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-        template-id="template_123" dev-mode &gt;&lt;/esign-component&gt;
+        session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." dev-mode
+        &gt;&lt;/esign-component&gt;
       </div>
       <div class="implementation">
         <esign-component
           session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
-          template-id="template_123"
-          dev-mode
-        ></esign-component>
-      </div>
-    </div>
-
-    <div class="example-section">
-      <h2>Template with Auto-filled Fields</h2>
-      <div class="code-snippet">
-        &lt;esign-component
-        session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-        template-id="template_123" signer-email="john@example.com"
-        signer-full-name="John Smith" signer-title="CEO" doc_legal_name="Acme
-        Corp LLC" doc_address_line_1="123 Main St" doc_address_line_2="Suite
-        100" doc_city="San Francisco" doc_state="CA" doc_zip="94105"
-        doc_tax_id="12-3456789" dev-mode &gt;&lt;/esign-component&gt;
-      </div>
-      <div class="implementation">
-        <esign-component
-          session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
-          template-id="template_123"
-          signer-email="john@example.com"
-          signer-full-name="John Smith"
-          signer-title="CEO"
-          doc_legal_name="Acme Corp LLC"
-          doc_address_line_1="123 Main St"
-          doc_address_line_2="Suite 100"
-          doc_city="San Francisco"
-          doc_state="CA"
-          doc_zip="94105"
-          doc_tax_id="12-3456789"
           dev-mode
         ></esign-component>
       </div>
       <div class="note">
-        <strong>Note:</strong> This example runs in developer mode with a sample
-        JWT token. In production, you should generate a short-lived session
-        token from your backend.
+        <strong>Note:</strong> Using default service URL
+        (https://api.esign.com/v1)
+      </div>
+    </div>
+
+    <div class="example-section">
+      <h2>Custom Service URL</h2>
+      <div class="code-snippet">
+        &lt;esign-component
+        session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        service-url="https://your-domain.com/api/esign" dev-mode
+        &gt;&lt;/esign-component&gt;
+      </div>
+      <div class="implementation">
+        <esign-component
+          session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+          service-url="https://your-domain.com/api/esign"
+          dev-mode
+        ></esign-component>
+      </div>
+      <div class="note">
+        <strong>Note:</strong> Using custom service URL. Check the browser
+        console to see the API endpoint being called.
       </div>
     </div>
 
@@ -105,7 +94,7 @@
           Add the <code>&lt;esign-component&gt;</code> element with your session
           token
         </li>
-        <li>Optionally specify a template and auto-fill fields</li>
+        <li>Configure the service URL if not using the default API endpoint</li>
         <li>
           Always include <code>dev-mode</code> attribute during development
         </li>

@@ -12,6 +12,9 @@ class ESIGNComponent extends HTMLElement {
   connectedCallback() {
     const sessionToken = this.getAttribute("session-token");
     this.devMode = this.hasAttribute("dev-mode");
+    // Get service URL with a default fallback
+    this.serviceUrl =
+      this.getAttribute("service-url") || "https://api.esign.com/v1";
 
     // Validate required session token
     if (!sessionToken) {
@@ -268,6 +271,7 @@ class ESIGNComponent extends HTMLElement {
 
       if (this.devMode) {
         console.log("Dev mode: Mocking signing API call", {
+          serviceUrl: this.serviceUrl,
           sessionToken,
           templateId: this.templateId,
           signer: this.signerFields,
@@ -275,7 +279,7 @@ class ESIGNComponent extends HTMLElement {
         });
         result = await this.mockSigningProcess(sessionToken);
       } else {
-        const response = await fetch("https://your-api.com/sign", {
+        const response = await fetch(`${this.serviceUrl}/sign`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -73,8 +73,20 @@ The session token is a short-lived JWT that contains all signing session details
 
 ```html
 <!-- Basic Usage - All signer and document data is encoded in the session token -->
-<esign-component session-token="your-jwt-token" dev-mode></esign-component>
+<esign-component
+  session-token="your-jwt-token"
+  service-url="https://your-domain.com/api/esign"
+  dev-mode
+></esign-component>
 ```
+
+### Configuration
+
+| Attribute     | Required | Default                  | Description                    |
+| ------------- | -------- | ------------------------ | ------------------------------ |
+| session-token | Yes      | -                        | JWT token from the session API |
+| service-url   | No       | https://api.esign.com/v1 | Base URL for the signing API   |
+| dev-mode      | No       | false                    | Enable development mode        |
 
 ### Security Considerations
 
