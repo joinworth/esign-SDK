@@ -76,30 +76,10 @@ The session token is a short-lived JWT that contains all signing session details
 <esign-component session-token="your-jwt-token" dev-mode></esign-component>
 ```
 
-### Available Attributes
-
-| Attribute        | Required | Description                        |
-| ---------------- | -------- | ---------------------------------- |
-| session-token    | Yes      | JWT token from the session API     |
-| template-id      | No       | ID of the document template to use |
-| full-legal-name  | No       | Legal name of the signing entity   |
-| signer-email     | No       | Email of the signer                |
-| signer-full-name | No       | Full name of the signer            |
-| signer-title     | No       | Title/position of the signer       |
-| address-1        | No       | Primary address line               |
-| address-2        | No       | Secondary address line             |
-| city             | No       | City                               |
-| state            | No       | State/Province                     |
-| zip              | No       | ZIP/Postal code                    |
-| tin              | No       | Tax Identification Number          |
-| dev-mode         | No       | Enable development mode            |
-
 ### Security Considerations
 
 - Always generate session tokens on the backend
-- Use short expiration times for session tokens (15-30 minutes recommended)
-- Never expose your JWT signing secret in client-side code
-- Use HTTPS for all API communications
+- Never expose your API KEY in client-side code
 
 ### Developer Mode
 
