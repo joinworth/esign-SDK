@@ -300,10 +300,22 @@ class ESIGNComponent extends HTMLElement {
         result = await response.json();
       }
 
-      alert(`Signing completed: ${result.status}`);
+      // Dispatch custom event with signing result
+      const event = new CustomEvent("signing-complete", {
+        bubbles: true,
+        composed: true, // Allows event to cross shadow DOM boundary
+        detail: result,
+      });
+      this.dispatchEvent(event);
     } catch (error) {
       console.error("Error during signing process:", error);
-      alert("An error occurred: " + error.message);
+      // Dispatch error event
+      const event = new CustomEvent("signing-error", {
+        bubbles: true,
+        composed: true,
+        detail: { error: error.message },
+      });
+      this.dispatchEvent(event);
     }
   }
 

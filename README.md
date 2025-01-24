@@ -107,3 +107,30 @@ This is useful for:
 - Development and testing
 - UI integration work
 - Demos and presentations
+
+### Events
+
+The component emits the following custom events:
+
+| Event Name       | Detail                                   | Description                                  |
+| ---------------- | ---------------------------------------- | -------------------------------------------- |
+| signing-complete | `{ status, documentId, timestamp, ... }` | Fired when signing is completed successfully |
+| signing-error    | `{ error }`                              | Fired when an error occurs during signing    |
+
+Example usage:
+
+```javascript
+document
+  .querySelector("esign-component")
+  .addEventListener("signing-complete", (event) => {
+    console.log("Signing completed:", event.detail);
+    // Handle successful signing...
+  });
+
+document
+  .querySelector("esign-component")
+  .addEventListener("signing-error", (event) => {
+    console.error("Signing error:", event.detail.error);
+    // Handle error...
+  });
+```

@@ -29,8 +29,22 @@
         padding: 15px;
         border-radius: 4px;
         margin: 10px 0;
-        font-family: monospace;
-        white-space: pre-wrap;
+        font-family: "Courier New", Courier, monospace;
+        overflow-x: auto;
+        font-size: 14px;
+        line-height: 1.5;
+        tab-size: 2;
+      }
+
+      /* Optional: Add syntax highlighting colors */
+      .code-snippet .keyword {
+        color: #07a;
+      }
+      .code-snippet .string {
+        color: #690;
+      }
+      .code-snippet .comment {
+        color: #999;
       }
 
       .note {
@@ -38,6 +52,22 @@
         padding: 10px;
         border-radius: 4px;
         margin: 10px 0;
+      }
+
+      .success-message {
+        color: #28a745;
+        padding: 10px;
+        margin-top: 10px;
+        background: #d4edda;
+        border-radius: 4px;
+      }
+
+      .error-message {
+        color: #dc3545;
+        padding: 10px;
+        margin-top: 10px;
+        background: #f8d7da;
+        border-radius: 4px;
       }
     </style>
     <!-- Include the ESIGN SDK -->
@@ -49,12 +79,26 @@
     <div class="example-section">
       <h2>Basic Implementation</h2>
       <div class="code-snippet">
-        &lt;esign-component
-        session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." dev-mode
-        &gt;&lt;/esign-component&gt;
+        &lt;esign-component<br />
+        session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."<br />
+        dev-mode<br />
+        id="basic-example"<br />&gt;&lt;/esign-component&gt;<br /><br />&lt;script&gt;<br />
+        document<br />
+        .getElementById('basic-example')<br />
+        .addEventListener('signing-complete', (event) => {<br />
+        alert(`Signing completed: ${event.detail.status}`);<br />
+        // Handle successful signing...<br />
+        });<br /><br />
+        document<br />
+        .getElementById('basic-example')<br />
+        .addEventListener('signing-error', (event) => {<br />
+        alert(`Error during signing: ${event.detail.error}`);<br />
+        // Handle error...<br />
+        });<br />&lt;/script&gt;
       </div>
       <div class="implementation">
         <esign-component
+          id="basic-example"
           session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
           dev-mode
         ></esign-component>
@@ -66,41 +110,50 @@
     </div>
 
     <div class="example-section">
-      <h2>Custom Service URL</h2>
+      <h2>Custom Service URL with Advanced Event Handling</h2>
       <div class="code-snippet">
-        &lt;esign-component
-        session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-        service-url="https://your-domain.com/api/esign" dev-mode
-        &gt;&lt;/esign-component&gt;
+        &lt;esign-component<br />
+        session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."<br />
+        service-url="https://your-domain.com/api/esign"<br />
+        dev-mode<br />
+        id="advanced-example"<br />&gt;&lt;/esign-component&gt;<br /><br />&lt;script&gt;<br />
+        const handleSigningComplete = (event) => {<br />
+        const result = event.detail;<br />
+        console.log('Signing completed:', result);<br /><br />
+        // Show success message<br />
+        const message = document.createElement('div');<br />
+        message.className = 'success-message';<br />
+        message.textContent = `Document ${result.documentId} signed
+        successfully!`;<br />
+        event.target.parentNode.appendChild(message);<br /><br />
+        // Additional actions...<br />
+        if (result.status === 'SUCCESS') {<br />
+        // Redirect or update UI<br />
+        }<br />
+        };<br /><br />
+        const handleSigningError = (event) => {<br />
+        console.error('Signing error:', event.detail.error);<br /><br />
+        // Show error message<br />
+        const message = document.createElement('div');<br />
+        message.className = 'error-message';<br />
+        message.textContent = `Error: ${event.detail.error}`;<br />
+        event.target.parentNode.appendChild(message);<br />
+        };<br /><br />
+        document<br />
+        .getElementById('advanced-example')<br />
+        .addEventListener('signing-complete', handleSigningComplete);<br /><br />
+        document<br />
+        .getElementById('advanced-example')<br />
+        .addEventListener('signing-error', handleSigningError);<br />&lt;/script&gt;
       </div>
       <div class="implementation">
         <esign-component
+          id="advanced-example"
           session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
           service-url="https://your-domain.com/api/esign"
           dev-mode
         ></esign-component>
       </div>
-      <div class="note">
-        <strong>Note:</strong> Using custom service URL. Check the browser
-        console to see the API endpoint being called.
-      </div>
-    </div>
-
-    <div class="example-section">
-      <h2>Development Testing Guide</h2>
-      <ol>
-        <li>Include the ESIGN SDK in your HTML file</li>
-        <li>
-          Add the <code>&lt;esign-component&gt;</code> element with your session
-          token
-        </li>
-        <li>Configure the service URL if not using the default API endpoint</li>
-        <li>
-          Always include <code>dev-mode</code> attribute during development
-        </li>
-        <li>Click "Start Signing" to test the mock signing flow</li>
-        <li>Check browser console for mock API interactions</li>
-      </ol>
     </div>
   </body>
 </html>
