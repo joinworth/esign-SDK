@@ -39,7 +39,7 @@ curl -X POST https://api.esign.com/v1/sessions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
-    "templateId": "template_123",
+    "templateId": "irs_8821",
     "signer": {
       "id": "user_123",
       "email": "john@example.com",
