@@ -62,12 +62,33 @@ Response:
 
 ```json
 {
-  "sessionToken": "eyJhbGciOiJIUzI1...",
-  "expiresAt": "2024-03-21T12:00:00Z"
+  "status": "success",
+  "message": "Session created successfully",
+  "data": {
+    "sessionToken": "mock_wmi508",
+    "expiresAt": "2025-01-24T22:59:59.492Z",
+    "documentId": "doc_9m3dr9",
+    "templateId": "template_123",
+    "signer": {
+      "id": "user_123",
+      "email": "john@example.com",
+      "fullName": "John Smith",
+      "title": "CEO"
+    },
+    "documentFields": {
+      "legalName": "Acme Corp LLC",
+      "addressLine1": "123 Main St",
+      "addressLine2": "Suite 100",
+      "city": "San Francisco",
+      "state": "CA",
+      "zip": "94105",
+      "taxId": "12-3456789"
+    }
+  }
 }
 ```
 
-The session token is a short-lived JWT that contains all signing session details and expires after 2 hours.
+The response includes a session token along with the complete session details including document and signer information. The session token expires after 24 hours.
 
 ### Step 3: Add the Web Component
 
