@@ -134,3 +134,48 @@ document
     // Handle error...
   });
 ```
+
+### Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant Client as Client App
+    participant SDK as ESIGN SDK
+    participant Backend as Backend Service
+    participant Template as Template Service
+    participant Storage as Document Storage
+
+    %% Session Creation
+    Client->>Backend: POST /v1/sessions (template_id, signer_info, doc_fields)
+    Backend->>Template: Get template requirements
+    Template-->>Backend: Template validation rules
+    Backend->>Backend: Validate fields & generate doc_id
+    Backend->>Backend: Create JWT with session data
+    Backend-->>Client: Return session token
+
+    %% Component Initialization
+    Client->>SDK: Initialize with session token
+    SDK->>Backend: Retrieve template document
+    Backend-->>SDK: Return template document
+    SDK->>SDK: Render signing interface with template
+
+    %% Signing Process
+    Note over SDK: User clicks "Start Signing"
+    SDK->>Backend: POST /v1/sign (session token)
+    Backend->>Backend: Validate session token
+    Backend->>Template: Generate document from template
+    Template-->>Backend: Populated document
+    Backend->>Storage: Store signed document
+    Storage-->>Backend: Document URL
+    Backend-->>SDK: Success response
+    SDK->>SDK: Dispatch signing-complete event
+    SDK-->>Client: Handle signing completion
+```
+
+This diagram shows:
+
+1. Initial session creation with document fields
+2. SDK initialization and validation
+3. User-triggered signing process
+4. Document generation and storage
+5. Event handling and completion
