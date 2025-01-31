@@ -35,7 +35,7 @@ Check out the [live demo](https://joinworth.github.io/esign-SDK/example.html)
 First, get a session token from the ESIGN API using your API key:
 
 ```bash
-curl -X POST https://api.esign.com/v1/sessions \
+curl -X POST https://localhost:3000/api/v1/sessions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
