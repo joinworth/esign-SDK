@@ -160,37 +160,31 @@ document
 
 ```mermaid
 sequenceDiagram
-    participant Client as Client App
-    participant SDK as ESIGN SDK
-    participant Backend as Backend Service
-    participant Template as Template Service
-    participant Storage as Document Storage
+  participant Client as Client App
+  participant ClientBackend as Client Backend
+  participant SDK as ESIGN Component
+  participant Backend as ESIGN Service
+  participant Storage as Document Storage
 
-    %% Session Creation
-    Client->>Backend: POST /v1/sessions (template_id, signer_info, doc_fields)
-    Backend->>Template: Get template requirements
-    Template-->>Backend: Template validation rules
-    Backend->>Backend: Validate fields & generate doc_id
-    Backend->>Backend: Create JWT with session data
-    Backend-->>Client: Return session token
 
-    %% Component Initialization
-    Client->>SDK: Initialize with session token
-    SDK->>Backend: Retrieve template document
-    Backend-->>SDK: Return template document
-    SDK->>SDK: Render signing interface with template
-
-    %% Signing Process
-    Note over SDK: User clicks "Start Signing"
-    SDK->>Backend: POST /v1/sign (session token)
-    Backend->>Backend: Validate session token
-    Backend->>Template: Generate document from template
-    Template-->>Backend: Populated document
-    Backend->>Storage: Store signed document
-    Storage-->>Backend: Document URL
-    Backend-->>SDK: Success response
-    SDK->>SDK: Dispatch signing-complete event
-    SDK-->>Client: Handle signing completion
+Note over Client: User loads signature page
+  Client ->> ClientBackend: Request session token
+  ClientBackend ->> Backend: POST /v1/sessions (with template_id and api secret)
+  Backend -->> ClientBackend: Return session token
+  ClientBackend -->> Client: Return session token
+  Client ->> SDK: Initialize component with session token
+  SDK ->> Backend: Retrieve template document
+  Backend -->> SDK: Return template document
+  SDK ->> SDK: Render signing interface with template
+  Note over SDK: User clicks "Sign"
+  SDK ->> Backend: POST /v1/sign (session token)
+  Backend ->> Backend: Generate document from template
+  Backend ->> Storage: Store signed document
+  Storage -->> Backend: Document URL
+  Backend -->> SDK: Success response
+  SDK ->> Client: Dispatch signing-complete event
+  Client -->> Client: Handle signing completion
+  Backend -->> ClientBackend: Upload document to Tax OCR (business_id)
 ```
 
 This diagram shows:
