@@ -71,7 +71,7 @@
       }
     </style>
     <!-- Include the ESIGN SDK -->
-    <script src="https://cdn.jsdelivr.net/gh/joinworth/esign-SDK@1.0.0/esign-sdk.js"></script>
+    <script src="./esign-sdk.js"></script>
   </head>
   <body>
     <h1>ESIGN SDK Development Example</h1>
@@ -88,13 +88,8 @@
         .addEventListener('signing-complete', (event) => {<br />
         alert(`Signing completed: ${event.detail.status}`);<br />
         // Handle successful signing...<br />
-        });<br /><br />
-        document<br />
-        .getElementById('basic-example')<br />
-        .addEventListener('signing-error', (event) => {<br />
-        alert(`Error during signing: ${event.detail.error}`);<br />
-        // Handle error...<br />
-        });<br />&lt;/script&gt;
+        });
+        <br />&lt;/script&gt;
       </div>
       <div class="implementation">
         <esign-component
@@ -102,6 +97,14 @@
           session-token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
           dev-mode
         ></esign-component>
+        <script>
+          document
+            .getElementById("basic-example")
+            .addEventListener("signing-complete", (event) => {
+              alert(`Signing completed: ${event.detail.status}`);
+              // Handle successful signing...
+            });
+        </script>
       </div>
       <div class="note">
         <strong>Note:</strong> Using default service URL
@@ -153,6 +156,41 @@
           service-url="https://your-domain.com/api/esign"
           dev-mode
         ></esign-component>
+        <script>
+          const handleSigningComplete = (event) => {
+            const result = event.detail;
+            console.log("Signing completed:", result);
+
+            // Show success message
+            const message = document.createElement("div");
+            message.className = "success-message";
+            message.textContent = `Document ${result.documentId} signed successfully!`;
+            event.target.parentNode.appendChild(message);
+
+            // Additional actions...
+            if (result.status === "SUCCESS") {
+              // Redirect or update UI
+            }
+          };
+
+          const handleSigningError = (event) => {
+            console.error("Signing error:", event.detail.error);
+
+            // Show error message
+            const message = document.createElement("div");
+            message.className = "error-message";
+            message.textContent = `Error: ${event.detail.error}`;
+            event.target.parentNode.appendChild(message);
+          };
+
+          document
+            .getElementById("advanced-example")
+            .addEventListener("signing-complete", handleSigningComplete);
+
+          document
+            .getElementById("advanced-example")
+            .addEventListener("signing-error", handleSigningError);
+        </script>
       </div>
     </div>
   </body>

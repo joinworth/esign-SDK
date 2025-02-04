@@ -26,10 +26,23 @@ class ESIGNComponent extends HTMLElement {
     // Extract all session information from the JWT
     const sessionDetails = this.decodeSessionToken(sessionToken);
 
-    // Validate session data
-    if (!this.validateSessionDetails(sessionDetails)) {
+    // Skip validation in dev mode
+    if (!this.devMode && !this.validateSessionDetails(sessionDetails)) {
       this.renderError("Invalid session token");
       return;
+    }
+
+    // In dev mode, provide default values if session details are missing
+    if (this.devMode) {
+      sessionDetails.documentId = sessionDetails.documentId || "DEV-DOC-123";
+      sessionDetails.templateId =
+        sessionDetails.templateId || "DEV-TEMPLATE-123";
+      sessionDetails.signer = sessionDetails.signer || {
+        id: "DEV-USER-123",
+        email: "dev@example.com",
+        fullName: "Dev User",
+      };
+      sessionDetails.documentFields = sessionDetails.documentFields || {};
     }
 
     // Store session data
