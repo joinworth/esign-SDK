@@ -193,5 +193,131 @@
         </script>
       </div>
     </div>
+
+    <div class="example-section">
+      <h2>Live Testing</h2>
+
+      <!-- Add configuration form for API settings -->
+      <div class="form-group">
+        <label for="api-key">API Key:</label>
+        <input type="text" id="api-key" placeholder="Enter your API key" />
+      </div>
+      <div class="form-group">
+        <label for="service-url">Service URL:</label>
+        <input
+          type="url"
+          id="service-url"
+          value="https://api.dev.joinworth.com/electronic-consent/api/v1"
+          placeholder="https://api.esign.com/v1"
+        />
+      </div>
+
+      <!-- Dynamic curl example -->
+      <div class="code-snippet" id="curl-example">
+        curl -X POST \<br />
+        &nbsp;&nbsp;<span class="service-url-display"
+          >https://api.dev.joinworth.com/electronic-consent/api/v1</span
+        >/session/create \<br />
+        &nbsp;&nbsp;-H "Content-Type: application/json" \<br />
+        &nbsp;&nbsp;-H "Authorization: Bearer
+        <span class="api-key-display">YOUR_API_KEY</span>" \<br />
+        &nbsp;&nbsp;-d '{<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;"documentId": "DOC-123456789",<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;"templateId": "TEMPLATE-IRS8821",<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;"signer": {<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"id": "USER-123",<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"email": "signer@example.com",<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"fullName": "Jane Smith"<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;},<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;"documentFields": {<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"legalName": "Acme Corporation",<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"taxId": "12-3456789",<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"addressLine1": "123 Business
+        Ave",<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"city": "San Francisco",<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"state": "CA",<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"zip": "94105"<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;}<br />
+        &nbsp;&nbsp;}'
+      </div>
+
+      <div class="implementation">
+        <!-- Add configuration form -->
+        <form id="config-form" class="config-form">
+          <div class="form-group">
+            <label for="session-token">Session Token:</label>
+            <input
+              type="text"
+              id="session-token"
+              required
+              placeholder="Enter your JWT session token"
+            />
+          </div>
+          <button type="submit">Initialize Component</button>
+        </form>
+
+        <!-- Container for dynamic component -->
+        <div id="dynamic-component-container"></div>
+
+        <script>
+          // Update curl example when API settings change
+          function updateCurlExample() {
+            const apiKey =
+              document.getElementById("api-key").value || "YOUR_API_KEY";
+            const serviceUrl = document.getElementById("service-url").value;
+
+            document.querySelectorAll(".api-key-display").forEach((el) => {
+              el.textContent = apiKey;
+            });
+
+            document.querySelectorAll(".service-url-display").forEach((el) => {
+              el.textContent = serviceUrl;
+            });
+          }
+
+          // Add event listeners for input changes
+          document
+            .getElementById("api-key")
+            .addEventListener("input", updateCurlExample);
+          document
+            .getElementById("service-url")
+            .addEventListener("input", updateCurlExample);
+
+          // Handle form submission
+          document
+            .getElementById("config-form")
+            .addEventListener("submit", (e) => {
+              e.preventDefault();
+
+              // Remove existing component if present
+              const container = document.getElementById(
+                "dynamic-component-container"
+              );
+              container.innerHTML = "";
+
+              // Create new component with form values
+              const component = document.createElement("esign-component");
+              component.setAttribute(
+                "session-token",
+                document.getElementById("session-token").value
+              );
+
+              // Use the same service URL as in the curl example
+              const serviceUrl = document.getElementById("service-url").value;
+              if (serviceUrl) {
+                component.setAttribute("service-url", serviceUrl);
+              }
+
+              // Add to container
+              container.appendChild(component);
+            });
+        </script>
+      </div>
+      <div class="note">
+        <strong>Note:</strong> Enter your API key and service URL to update the
+        curl example. Use the generated session token to initialize the
+        component.
+      </div>
+    </div>
   </body>
 </html>
