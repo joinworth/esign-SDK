@@ -7,6 +7,26 @@ class ESIGNComponent extends HTMLElement {
     super();
     // Create a shadow DOM for style encapsulation
     this.attachShadow({ mode: "open" });
+    // Add PDF.js library
+    this.loadPDFJS();
+  }
+
+  // Add method to load PDF.js
+  async loadPDFJS() {
+    if (window.pdfjsLib) return; // Already loaded
+
+    const script = document.createElement("script");
+    script.src =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    script.async = true;
+    document.head.appendChild(script);
+
+    // Wait for script to load
+    await new Promise((resolve) => (script.onload = resolve));
+
+    // Configure worker
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   }
 
   connectedCallback() {
@@ -108,14 +128,42 @@ class ESIGNComponent extends HTMLElement {
           font-weight: bold;
           color: #666;
         }
+        .pdf-container {
+          width: 100%;
+          height: 800px;
+          margin: 20px 0;
+          border: 1px solid #ccc;
+          overflow: hidden;
+        }
+        
+        #pdf-viewer {
+          width: 100%;
+          height: 100%;
+          border: none;
+        }
+        
+        .loading {
+          text-align: center;
+          padding: 20px;
+          font-style: italic;
+          color: #666;
+        }
       </style>
       <div class="esign-container">
         <div class="dev-mode-badge">Dev Mode</div>
         <p>Ready to sign document ID: ${sessionDetails.documentId}</p>
+        <div class="pdf-container">
+          <div id="pdf-viewer-container">
+            <canvas id="pdf-canvas"></canvas>
+          </div>
+        </div>
         ${this.renderFieldPreview()}
         <button class="esign-button" id="start-signing">Start Signing</button>
       </div>
     `;
+
+    // Load and render PDF
+    this.loadPDFPreview();
 
     // Attach click handler for the signing button
     this.shadowRoot
@@ -348,6 +396,100 @@ class ESIGNComponent extends HTMLElement {
       signer: this.signerFields,
       documentFields: this.documentFields,
     };
+  }
+
+  // Add method to load and render PDF
+  async loadPDFPreview() {
+    try {
+      // In dev mode, use a sample PDF with CORS handling
+      const pdfUrl = this.devMode
+        ? "https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf" // CORS-friendly sample PDF
+        : `${this.serviceUrl}/documents/${this.documentId}/preview`;
+
+      // Show loading state
+      const container = this.shadowRoot.querySelector("#pdf-viewer-container");
+      container.innerHTML = `
+        <div class="loading">
+          Loading PDF preview...
+        </div>
+      `;
+
+      // Wait for PDF.js to be loaded
+      while (!window.pdfjsLib) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      // Configure PDF.js for potential CORS issues
+      const loadingTask = window.pdfjsLib.getDocument({
+        url: pdfUrl,
+        withCredentials: !this.devMode, // Enable credentials for production URLs
+        cMapUrl:
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/",
+        cMapPacked: true,
+      });
+
+      // Add loading progress
+      loadingTask.onProgress = (progress) => {
+        const percent = (progress.loaded / progress.total) * 100;
+        container.innerHTML = `
+          <div class="loading">
+            Loading PDF preview... ${Math.round(percent)}%
+          </div>
+        `;
+      };
+
+      const pdf = await loadingTask.promise;
+
+      // Get the first page
+      const page = await pdf.getPage(1);
+
+      // Prepare canvas for rendering
+      container.innerHTML = '<canvas id="pdf-canvas"></canvas>';
+      const canvas = this.shadowRoot.querySelector("#pdf-canvas");
+      const context = canvas.getContext("2d");
+
+      // Calculate scale to fit width
+      const containerWidth =
+        this.shadowRoot.querySelector(".pdf-container").clientWidth;
+      const viewport = page.getViewport({ scale: 1 });
+      const scale = containerWidth / viewport.width;
+      const scaledViewport = page.getViewport({ scale });
+
+      // Set canvas dimensions
+      canvas.width = scaledViewport.width;
+      canvas.height = scaledViewport.height;
+
+      // Render PDF page
+      await page.render({
+        canvasContext: context,
+        viewport: scaledViewport,
+      }).promise;
+    } catch (error) {
+      console.error("Error loading PDF preview:", error);
+      const container = this.shadowRoot.querySelector("#pdf-viewer-container");
+
+      // Show more user-friendly error message
+      container.innerHTML = `
+        <div class="error-message">
+          <p>Unable to load PDF preview.</p>
+          ${
+            this.devMode
+              ? `
+            <p>Development mode: Using a sample PDF failed. This might be due to:</p>
+            <ul>
+              <li>CORS restrictions</li>
+              <li>Network connectivity issues</li>
+              <li>PDF server unavailability</li>
+            </ul>
+            <p>Technical details: ${error.message}</p>
+          `
+              : `
+            <p>Please try again later or contact support if the issue persists.</p>
+          `
+          }
+        </div>
+      `;
+    }
   }
 }
 
