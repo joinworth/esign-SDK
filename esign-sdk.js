@@ -130,16 +130,25 @@ class ESIGNComponent extends HTMLElement {
         }
         .pdf-container {
           width: 100%;
-          height: 800px;
+          height: 500px;
           margin: 20px 0;
           border: 1px solid #ccc;
-          overflow: hidden;
+          overflow-y: auto;  /* Make container scrollable */
+          background: #f5f5f5;
         }
         
-        #pdf-viewer {
-          width: 100%;
-          height: 100%;
-          border: none;
+        #pdf-viewer-container {
+          padding: 20px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 20px;
+        }
+        
+        .pdf-page {
+          background: white;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+          margin: 0 auto;
         }
         
         .loading {
@@ -440,30 +449,46 @@ class ESIGNComponent extends HTMLElement {
 
       const pdf = await loadingTask.promise;
 
-      // Get the first page
-      const page = await pdf.getPage(1);
+      // Clear the container and prepare for multiple pages
+      container.innerHTML = "";
 
-      // Prepare canvas for rendering
-      container.innerHTML = '<canvas id="pdf-canvas"></canvas>';
-      const canvas = this.shadowRoot.querySelector("#pdf-canvas");
-      const context = canvas.getContext("2d");
+      // Render all pages
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        // Add loading indicator for each page
+        const pageContainer = document.createElement("div");
+        pageContainer.className = "pdf-page";
+        pageContainer.innerHTML = `
+          <div class="loading">
+            Loading page ${pageNum}...
+          </div>
+        `;
+        container.appendChild(pageContainer);
 
-      // Calculate scale to fit width
-      const containerWidth =
-        this.shadowRoot.querySelector(".pdf-container").clientWidth;
-      const viewport = page.getViewport({ scale: 1 });
-      const scale = containerWidth / viewport.width;
-      const scaledViewport = page.getViewport({ scale });
+        // Get the page
+        const page = await pdf.getPage(pageNum);
 
-      // Set canvas dimensions
-      canvas.width = scaledViewport.width;
-      canvas.height = scaledViewport.height;
+        // Calculate scale to fit width
+        const containerWidth =
+          this.shadowRoot.querySelector(".pdf-container").clientWidth - 40; // Account for padding
+        const viewport = page.getViewport({ scale: 1 });
+        const scale = containerWidth / viewport.width;
+        const scaledViewport = page.getViewport({ scale });
 
-      // Render PDF page
-      await page.render({
-        canvasContext: context,
-        viewport: scaledViewport,
-      }).promise;
+        // Create canvas for this page
+        const canvas = document.createElement("canvas");
+        canvas.width = scaledViewport.width;
+        canvas.height = scaledViewport.height;
+
+        // Replace loading indicator with canvas
+        pageContainer.innerHTML = "";
+        pageContainer.appendChild(canvas);
+
+        // Render the page
+        await page.render({
+          canvasContext: canvas.getContext("2d"),
+          viewport: scaledViewport,
+        }).promise;
+      }
     } catch (error) {
       console.error("Error loading PDF preview:", error);
       const container = this.shadowRoot.querySelector("#pdf-viewer-container");
