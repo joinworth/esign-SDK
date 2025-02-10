@@ -6,13 +6,39 @@ A lightweight JavaScript library that provides a custom web component `<esign-co
 
 Check out the [live demo](https://joinworth.github.io/esign-SDK/example.html)
 
-## Features
+## Purpose
 
 - Simple integration with just a few lines of code.
 - Customizable attributes for API key and document ID.
 - Secure interaction with ESIGN APIs using API keys.
 - Built-in UI for initiating signing workflows.
 - Developer mode for testing and development
+
+## End User Features
+
+### Document Viewing
+
+- Smooth PDF preview with multi-page support
+- Zoom controls to adjust document size (+ and - buttons)
+- Page navigation with Previous/Next buttons
+- Current page indicator showing position in document
+
+### Signature Capabilities
+
+- Support for multiple signature blocks per document
+- Required vs optional signature indicators
+- Visual signature status tracking
+- Signature completion progress bar
+- Click-to-sign interface with signature input dialog
+- Signature validation and verification
+
+### User Experience
+
+- Responsive design that works across devices
+- Clear visual indicators for required signatures
+- Real-time status updates on signature progress
+- Error handling with user-friendly messages
+- Development mode for testing workflows
 
 ## How It Works
 
