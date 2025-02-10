@@ -225,6 +225,19 @@ class ESIGNComponent extends HTMLElement {
           border-radius: 12px;
           font-size: 12px;
         }
+
+        .loading-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(255, 255, 255, 0.9);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 2;
+        }
       </style>
       <div class="esign-container">
         <div class="dev-mode-badge">Dev Mode</div>
@@ -674,6 +687,16 @@ class ESIGNComponent extends HTMLElement {
           left: currentScrollLeft / pdfContainer.scrollWidth,
         };
 
+        // Show loading overlay
+        container.insertAdjacentHTML(
+          "afterbegin",
+          `
+          <div class="loading-overlay">
+            <div class="loading">Updating zoom...</div>
+          </div>
+        `
+        );
+
         // Update zoom
         this.currentZoom = newZoom;
         zoomInfo.textContent = `${Math.round(newZoom * 100)}%`;
@@ -681,6 +704,9 @@ class ESIGNComponent extends HTMLElement {
 
         // Render with new zoom
         this.renderAllPages(pdf, pagesContainer).then(() => {
+          // Remove loading overlay
+          container.querySelector(".loading-overlay")?.remove();
+
           // Restore scroll position after render
           requestAnimationFrame(() => {
             pdfContainer.scrollTop =
