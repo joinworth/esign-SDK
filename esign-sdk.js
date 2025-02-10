@@ -262,6 +262,37 @@ class ESIGNComponent extends HTMLElement {
         .pdf-page {
           position: relative;  /* For absolute positioning of signature blocks */
         }
+
+        .signature-input-dialog {
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: white;
+          padding: 20px;
+          border-radius: 8px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          z-index: 3;
+        }
+
+        .signature-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.5);
+          z-index: 2;
+        }
+
+        .signed-text {
+          font-family: 'Dancing Script', cursive;
+          color: #000;
+          font-size: 1.2em;
+          padding: 5px;
+          background: rgba(0,123,255,0.1);
+          border-radius: 4px;
+        }
       </style>
       <div class="esign-container">
         <div class="dev-mode-badge">Dev Mode</div>
@@ -272,17 +303,11 @@ class ESIGNComponent extends HTMLElement {
           </div>
         </div>
         ${this.renderFieldPreview()}
-        <button class="esign-button" id="start-signing">Start Signing</button>
       </div>
     `;
 
     // Load and render PDF
     this.loadPDFPreview();
-
-    // Attach click handler for the signing button
-    this.shadowRoot
-      .getElementById("start-signing")
-      .addEventListener("click", () => this.startSigning(sessionToken));
   }
 
   /**
@@ -863,12 +888,62 @@ class ESIGNComponent extends HTMLElement {
 
           signatureBlock.addEventListener("click", () => {
             console.log("Signature block clicked");
-            // Trigger signing process
-            const startSigningButton =
-              this.shadowRoot.querySelector("#start-signing");
-            if (startSigningButton) {
-              startSigningButton.click();
-            }
+
+            // Create overlay and dialog
+            const overlay = document.createElement("div");
+            overlay.className = "signature-overlay";
+
+            const dialog = document.createElement("div");
+            dialog.className = "signature-input-dialog";
+            dialog.innerHTML = `
+              <h3>Enter your signature</h3>
+              <input type="text" placeholder="Type your name" style="margin: 10px 0; padding: 5px;">
+              <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+                <button class="esign-button" style="background: #6c757d;">Cancel</button>
+                <button class="esign-button">Sign</button>
+              </div>
+            `;
+
+            // Add to DOM
+            this.shadowRoot.appendChild(overlay);
+            this.shadowRoot.appendChild(dialog);
+
+            // Focus input
+            const input = dialog.querySelector("input");
+            input.focus();
+
+            // Handle cancel
+            const [cancelBtn, signBtn] = dialog.querySelectorAll("button");
+            cancelBtn.addEventListener("click", () => {
+              overlay.remove();
+              dialog.remove();
+            });
+
+            // Handle sign
+            const handleSign = () => {
+              const signedText = input.value.trim();
+              if (signedText) {
+                // Replace signature block with signed text
+                signatureBlock.className = "signed-text";
+                signatureBlock.textContent = signedText;
+                signatureBlock.style.cursor = "default";
+
+                // Remove click handler
+                signatureBlock.replaceWith(signatureBlock.cloneNode(true));
+
+                // Clean up dialog
+                overlay.remove();
+                dialog.remove();
+
+                // Trigger signing process
+                this.startSigning(this.getAttribute("session-token"));
+              }
+            };
+
+            signBtn.addEventListener("click", handleSign);
+            input.addEventListener("keypress", (e) => {
+              if (e.key === "Enter") handleSign();
+            });
           });
         }
       } else if (this.sessionDetails?.signatureBlocks) {
@@ -886,6 +961,66 @@ class ESIGNComponent extends HTMLElement {
           signatureBlock.style.left = `${block.position.x}%`;
           signatureBlock.style.top = `${block.position.y}%`;
           pageContainer.appendChild(signatureBlock);
+
+          signatureBlock.addEventListener("click", () => {
+            console.log("Signature block clicked");
+
+            // Create overlay and dialog
+            const overlay = document.createElement("div");
+            overlay.className = "signature-overlay";
+
+            const dialog = document.createElement("div");
+            dialog.className = "signature-input-dialog";
+            dialog.innerHTML = `
+              <h3>Enter your signature</h3>
+              <input type="text" placeholder="Type your name" style="margin: 10px 0; padding: 5px;">
+              <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+                <button class="esign-button" style="background: #6c757d;">Cancel</button>
+                <button class="esign-button">Sign</button>
+              </div>
+            `;
+
+            // Add to DOM
+            this.shadowRoot.appendChild(overlay);
+            this.shadowRoot.appendChild(dialog);
+
+            // Focus input
+            const input = dialog.querySelector("input");
+            input.focus();
+
+            // Handle cancel
+            const [cancelBtn, signBtn] = dialog.querySelectorAll("button");
+            cancelBtn.addEventListener("click", () => {
+              overlay.remove();
+              dialog.remove();
+            });
+
+            // Handle sign
+            const handleSign = () => {
+              const signedText = input.value.trim();
+              if (signedText) {
+                // Replace signature block with signed text
+                signatureBlock.className = "signed-text";
+                signatureBlock.textContent = signedText;
+                signatureBlock.style.cursor = "default";
+
+                // Remove click handler
+                signatureBlock.replaceWith(signatureBlock.cloneNode(true));
+
+                // Clean up dialog
+                overlay.remove();
+                dialog.remove();
+
+                // Trigger signing process
+                this.startSigning(this.getAttribute("session-token"));
+              }
+            };
+
+            signBtn.addEventListener("click", handleSign);
+            input.addEventListener("keypress", (e) => {
+              if (e.key === "Enter") handleSign();
+            });
+          });
         });
       }
     }
