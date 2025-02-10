@@ -135,22 +135,29 @@ class ESIGNComponent extends HTMLElement {
           height: 500px;
           margin: 20px 0;
           border: 1px solid #ccc;
-          overflow-y: auto;  /* Make container scrollable */
+          overflow: auto;  /* Change from overflow-y to overflow */
           background: #f5f5f5;
+          cursor: grab;
+          position: relative;
         }
         
-        #pdf-viewer-container {
+        .pdf-container.panning {
+          cursor: grabbing;
+          user-select: none;
+        }
+
+        #pages-container {
+          position: relative;
+          min-width: 100%;
+          /* Add padding to ensure space around the PDF when zoomed */
           padding: 20px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 20px;
         }
         
         .pdf-page {
           background: white;
           box-shadow: 0 2px 5px rgba(0,0,0,0.1);
           margin: 0 auto;
+          max-width: none;  /* Allow page to expand beyond container width when zoomed */
         }
         
         .loading {
@@ -604,12 +611,63 @@ class ESIGNComponent extends HTMLElement {
       });
 
       // Zoom handlers
+      let isPanning = false;
+      let startX;
+      let startY;
+      let scrollLeft;
+      let scrollTop;
+
+      const startPanning = (e) => {
+        isPanning = true;
+        pdfContainer.classList.add("panning");
+        startX = e.pageX - pdfContainer.offsetLeft;
+        startY = e.pageY - pdfContainer.offsetTop;
+        scrollLeft = pdfContainer.scrollLeft;
+        scrollTop = pdfContainer.scrollTop;
+      };
+
+      const stopPanning = () => {
+        isPanning = false;
+        pdfContainer.classList.remove("panning");
+      };
+
+      const pan = (e) => {
+        if (!isPanning) return;
+
+        e.preventDefault();
+        const x = e.pageX - pdfContainer.offsetLeft;
+        const y = e.pageY - pdfContainer.offsetTop;
+        const moveX = x - startX;
+        const moveY = y - startY;
+
+        pdfContainer.scrollLeft = scrollLeft - moveX;
+        pdfContainer.scrollTop = scrollTop - moveY;
+      };
+
+      // Only enable panning when zoomed in
+      const updatePanningState = () => {
+        if (this.currentZoom > 1) {
+          pdfContainer.addEventListener("mousedown", startPanning);
+          document.addEventListener("mousemove", pan);
+          document.addEventListener("mouseup", stopPanning);
+          pdfContainer.style.cursor = "grab";
+        } else {
+          pdfContainer.removeEventListener("mousedown", startPanning);
+          document.removeEventListener("mousemove", pan);
+          document.removeEventListener("mouseup", stopPanning);
+          pdfContainer.style.cursor = "default";
+        }
+      };
+
+      // Update the zoom handler to include panning state
       const updateZoom = (newZoom) => {
         this.currentZoom = newZoom;
         zoomInfo.textContent = `${Math.round(newZoom * 100)}%`;
+        updatePanningState();
         this.renderAllPages(pdf, pagesContainer);
       };
 
+      // Add zoom button handlers
       zoomOutButton.addEventListener("click", () => {
         const currentIndex = this.zoomLevels.indexOf(this.currentZoom);
         if (currentIndex > 0) {
@@ -623,6 +681,16 @@ class ESIGNComponent extends HTMLElement {
           updateZoom(this.zoomLevels[currentIndex + 1]);
         }
       });
+
+      // Initial panning state
+      updatePanningState();
+
+      // Clean up event listeners when component is removed
+      this.cleanup = () => {
+        pdfContainer.removeEventListener("mousedown", startPanning);
+        document.removeEventListener("mousemove", pan);
+        document.removeEventListener("mouseup", stopPanning);
+      };
 
       // Initial render
       await this.renderAllPages(pdf, pagesContainer);
@@ -697,6 +765,13 @@ class ESIGNComponent extends HTMLElement {
         canvasContext: canvas.getContext("2d"),
         viewport: scaledViewport,
       }).promise;
+    }
+  }
+
+  // Add disconnectedCallback to clean up event listeners
+  disconnectedCallback() {
+    if (this.cleanup) {
+      this.cleanup();
     }
   }
 }
