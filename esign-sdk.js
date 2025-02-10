@@ -85,6 +85,8 @@ class ESIGNComponent extends HTMLElement {
           max-width: 500px;
           margin: auto;
           text-align: center;
+          position: relative;
+          padding-bottom: 60px;
         }
         /* Primary action button */
         .esign-button {
@@ -298,6 +300,43 @@ class ESIGNComponent extends HTMLElement {
           text-align: center;
           width: 200px;
         }
+
+        .signature-status {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: white;
+          padding: 10px 15px;
+          border-bottom: 1px solid #ccc;
+          font-size: 14px;
+          text-align: center;
+          border-radius: 0 0 4px 4px;
+        }
+
+        .signature-block {
+          position: relative;
+        }
+
+        .signature-block::before {
+          content: "Required";
+          position: absolute;
+          top: -20px;
+          left: 0;
+          font-size: 12px;
+          color: #dc3545;
+          opacity: 0.8;
+        }
+
+        .signature-block.completed {
+          border-color: #28a745;
+          background: rgba(40, 167, 69, 0.1);
+        }
+
+        .signature-block.completed::before {
+          content: "✓ Signed";
+          color: #28a745;
+        }
       </style>
       <div class="esign-container">
         <div class="dev-mode-badge">Dev Mode</div>
@@ -308,6 +347,9 @@ class ESIGNComponent extends HTMLElement {
           </div>
         </div>
         ${this.renderFieldPreview()}
+        <div class="signature-status">
+          Signatures: <span id="signatures-complete">0</span>/<span id="signatures-required">0</span>
+        </div>
       </div>
     `;
 
@@ -960,6 +1002,9 @@ class ESIGNComponent extends HTMLElement {
                 if (this.areAllSignaturesComplete()) {
                   this.startSigning(this.getAttribute("session-token"));
                 }
+
+                // Update signature status
+                this.updateSignatureStatus();
               }
             };
 
@@ -1054,6 +1099,9 @@ class ESIGNComponent extends HTMLElement {
                 if (this.areAllSignaturesComplete()) {
                   this.startSigning(this.getAttribute("session-token"));
                 }
+
+                // Update signature status
+                this.updateSignatureStatus();
               }
             };
 
@@ -1065,6 +1113,9 @@ class ESIGNComponent extends HTMLElement {
         });
       }
     }
+
+    // Update signature status
+    this.updateSignatureStatus();
   }
 
   // Add helper method to check if all required signatures are complete
@@ -1090,6 +1141,29 @@ class ESIGNComponent extends HTMLElement {
   disconnectedCallback() {
     if (this.cleanup) {
       this.cleanup();
+    }
+  }
+
+  // Add method to update signature status
+  updateSignatureStatus() {
+    const statusElement = this.shadowRoot.querySelector(".signature-status");
+    const completeCount = this.shadowRoot.querySelector("#signatures-complete");
+    const requiredCount = this.shadowRoot.querySelector("#signatures-required");
+
+    const required = this.devMode
+      ? 1
+      : Array.from(this.signatureBlocks).filter((block) =>
+          block.classList.contains("required")
+        ).length;
+
+    const completed = this.completedSignatures.size;
+
+    completeCount.textContent = completed;
+    requiredCount.textContent = required;
+
+    if (completed === required) {
+      statusElement.style.background = "#d4edda";
+      statusElement.style.color = "#155724";
     }
   }
 }
