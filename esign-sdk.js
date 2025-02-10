@@ -9,6 +9,8 @@ class ESIGNComponent extends HTMLElement {
     this.attachShadow({ mode: "open" });
     // Add PDF.js library
     this.loadPDFJS();
+    this.currentZoom = 1;
+    this.zoomLevels = [0.5, 0.75, 1, 1.25, 1.5, 2];
   }
 
   // Add method to load PDF.js
@@ -156,6 +158,63 @@ class ESIGNComponent extends HTMLElement {
           padding: 20px;
           font-style: italic;
           color: #666;
+        }
+
+        .pdf-controls {
+          background: #fff;
+          padding: 10px;
+          border-bottom: 1px solid #ccc;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 15px;
+          position: sticky;
+          top: 0;
+          z-index: 1;
+        }
+
+        .pdf-controls button {
+          padding: 5px 10px;
+          background: #f8f9fa;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+
+        .pdf-controls button:hover {
+          background: #e9ecef;
+        }
+
+        .pdf-controls button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .pdf-page-info {
+          font-size: 14px;
+          color: #666;
+        }
+
+        .pdf-zoom-info {
+          font-size: 14px;
+          color: #666;
+          min-width: 60px;
+          text-align: center;
+        }
+
+        .pdf-page {
+          position: relative;
+        }
+
+        .page-number {
+          position: absolute;
+          bottom: 10px;
+          right: 10px;
+          background: rgba(0, 0, 0, 0.5);
+          color: white;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 12px;
         }
       </style>
       <div class="esign-container">
@@ -449,46 +508,124 @@ class ESIGNComponent extends HTMLElement {
 
       const pdf = await loadingTask.promise;
 
-      // Clear the container and prepare for multiple pages
-      container.innerHTML = "";
+      // Clear the container and add controls
+      container.innerHTML = `
+        <div class="pdf-controls">
+          <button id="prev-page" disabled>← Previous</button>
+          <span class="pdf-page-info">Page <span id="current-page">1</span> of ${
+            pdf.numPages
+          }</span>
+          <button id="next-page" ${
+            pdf.numPages <= 1 ? "disabled" : ""
+          }>Next →</button>
+          <button id="zoom-out">−</button>
+          <span class="pdf-zoom-info">100%</span>
+          <button id="zoom-in">+</button>
+        </div>
+        <div id="pages-container"></div>
+      `;
 
-      // Render all pages
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        // Add loading indicator for each page
-        const pageContainer = document.createElement("div");
-        pageContainer.className = "pdf-page";
-        pageContainer.innerHTML = `
-          <div class="loading">
-            Loading page ${pageNum}...
-          </div>
-        `;
-        container.appendChild(pageContainer);
+      // Get the containers and controls
+      const pagesContainer = container.querySelector("#pages-container");
+      const pdfContainer = this.shadowRoot.querySelector(".pdf-container");
+      const prevButton = container.querySelector("#prev-page");
+      const nextButton = container.querySelector("#next-page");
+      const zoomOutButton = container.querySelector("#zoom-out");
+      const zoomInButton = container.querySelector("#zoom-in");
+      const currentPageSpan = container.querySelector("#current-page");
+      const zoomInfo = container.querySelector(".pdf-zoom-info");
 
-        // Get the page
-        const page = await pdf.getPage(pageNum);
+      // Scroll to page function
+      const scrollToPage = (pageNum) => {
+        const pageElement = pagesContainer.querySelector(
+          `[data-page="${pageNum}"]`
+        );
+        if (pageElement) {
+          pdfContainer.scrollTo({
+            top: pageElement.offsetTop - container.offsetTop,
+            behavior: "smooth",
+          });
+        }
+      };
 
-        // Calculate scale to fit width
-        const containerWidth =
-          this.shadowRoot.querySelector(".pdf-container").clientWidth - 40; // Account for padding
-        const viewport = page.getViewport({ scale: 1 });
-        const scale = containerWidth / viewport.width;
-        const scaledViewport = page.getViewport({ scale });
+      // Update page number on scroll
+      const updateCurrentPage = () => {
+        const pages = Array.from(pagesContainer.querySelectorAll(".pdf-page"));
+        const containerRect = pdfContainer.getBoundingClientRect();
+        const containerTop = containerRect.top + pdfContainer.scrollTop;
 
-        // Create canvas for this page
-        const canvas = document.createElement("canvas");
-        canvas.width = scaledViewport.width;
-        canvas.height = scaledViewport.height;
+        // Find the page that is most visible in the viewport
+        const currentPage = pages.reduce(
+          (closest, page) => {
+            const rect = page.getBoundingClientRect();
+            const visibleHeight =
+              Math.min(rect.bottom, containerRect.bottom) -
+              Math.max(rect.top, containerRect.top);
+            return visibleHeight > closest.visibleHeight
+              ? { element: page, visibleHeight }
+              : closest;
+          },
+          { element: pages[0], visibleHeight: 0 }
+        ).element;
 
-        // Replace loading indicator with canvas
-        pageContainer.innerHTML = "";
-        pageContainer.appendChild(canvas);
+        const pageNum = parseInt(currentPage.dataset.page);
+        currentPageSpan.textContent = pageNum;
+        prevButton.disabled = pageNum === 1;
+        nextButton.disabled = pageNum === pdf.numPages;
+      };
 
-        // Render the page
-        await page.render({
-          canvasContext: canvas.getContext("2d"),
-          viewport: scaledViewport,
-        }).promise;
-      }
+      // Listen for scroll events on the PDF container
+      pdfContainer.addEventListener("scroll", updateCurrentPage);
+
+      // Navigation button handlers
+      prevButton.addEventListener("click", () => {
+        const currentPage = parseInt(currentPageSpan.textContent);
+        if (currentPage > 1) {
+          scrollToPage(currentPage - 1);
+          updateCurrentPage();
+        }
+      });
+
+      nextButton.addEventListener("click", () => {
+        const currentPage = parseInt(currentPageSpan.textContent);
+        if (currentPage < pdf.numPages) {
+          scrollToPage(currentPage + 1);
+          updateCurrentPage();
+        }
+      });
+
+      // Add keyboard navigation
+      pdfContainer.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+          nextButton.click();
+        } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+          prevButton.click();
+        }
+      });
+
+      // Zoom handlers
+      const updateZoom = (newZoom) => {
+        this.currentZoom = newZoom;
+        zoomInfo.textContent = `${Math.round(newZoom * 100)}%`;
+        this.renderAllPages(pdf, pagesContainer);
+      };
+
+      zoomOutButton.addEventListener("click", () => {
+        const currentIndex = this.zoomLevels.indexOf(this.currentZoom);
+        if (currentIndex > 0) {
+          updateZoom(this.zoomLevels[currentIndex - 1]);
+        }
+      });
+
+      zoomInButton.addEventListener("click", () => {
+        const currentIndex = this.zoomLevels.indexOf(this.currentZoom);
+        if (currentIndex < this.zoomLevels.length - 1) {
+          updateZoom(this.zoomLevels[currentIndex + 1]);
+        }
+      });
+
+      // Initial render
+      await this.renderAllPages(pdf, pagesContainer);
     } catch (error) {
       console.error("Error loading PDF preview:", error);
       const container = this.shadowRoot.querySelector("#pdf-viewer-container");
@@ -514,6 +651,52 @@ class ESIGNComponent extends HTMLElement {
           }
         </div>
       `;
+    }
+  }
+
+  // Add new method for rendering pages
+  async renderAllPages(pdf, container) {
+    container.innerHTML = "";
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      // Add loading indicator for each page
+      const pageContainer = document.createElement("div");
+      pageContainer.className = "pdf-page";
+      pageContainer.dataset.page = pageNum;
+      pageContainer.innerHTML = `
+        <div class="loading">
+          Loading page ${pageNum}...
+        </div>
+        <div class="page-number">Page ${pageNum}</div>
+      `;
+      container.appendChild(pageContainer);
+
+      // Get the page
+      const page = await pdf.getPage(pageNum);
+
+      // Calculate scale to fit width
+      const containerWidth =
+        this.shadowRoot.querySelector(".pdf-container").clientWidth - 40;
+      const viewport = page.getViewport({ scale: 1 });
+      const scale = (containerWidth / viewport.width) * this.currentZoom;
+      const scaledViewport = page.getViewport({ scale });
+
+      // Create canvas for this page
+      const canvas = document.createElement("canvas");
+      canvas.width = scaledViewport.width;
+      canvas.height = scaledViewport.height;
+
+      // Replace loading indicator with canvas (keep page number)
+      const pageNumber = pageContainer.querySelector(".page-number");
+      pageContainer.innerHTML = "";
+      pageContainer.appendChild(canvas);
+      pageContainer.appendChild(pageNumber);
+
+      // Render the page
+      await page.render({
+        canvasContext: canvas.getContext("2d"),
+        viewport: scaledViewport,
+      }).promise;
     }
   }
 }

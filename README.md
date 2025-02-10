@@ -83,12 +83,36 @@ Response:
       "state": "CA",
       "zip": "94105",
       "taxId": "12-3456789"
-    }
+    },
+    "signatureBlocks": [
+      {
+        "id": "sig_block_1",
+        "type": "signature",
+        "page": 1,
+        "position": {
+          "x": 25.5, // Percentage from left
+          "y": 75.2 // Percentage from top
+        },
+        "required": true,
+        "label": "Taxpayer Signature"
+      }
+    ]
   }
 }
 ```
 
-The response includes a session token along with the complete session details including document and signer information. The session token expires after 24 hours.
+The response includes:
+
+- Session token and expiration
+- Document and template IDs
+- Signer information
+- Document fields
+- Signature block locations and requirements:
+  - `page`: The page number where the signature block appears
+  - `position`: X,Y coordinates as percentages of page width/height
+  - `type`: Type of signature block (signature, date, initial, etc.)
+  - `required`: Whether this signature is required
+  - `label`: Description of the signature block
 
 ### Step 3: Add the Web Component
 
