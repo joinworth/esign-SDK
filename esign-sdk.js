@@ -238,6 +238,30 @@ class ESIGNComponent extends HTMLElement {
           justify-content: center;
           z-index: 2;
         }
+
+        .signature-block {
+          position: absolute;
+          background: rgba(0, 123, 255, 0.1);
+          border: 2px solid #007bff;
+          border-radius: 4px;
+          padding: 10px;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .signature-block:hover {
+          background: rgba(0, 123, 255, 0.2);
+        }
+
+        .signature-block.required::after {
+          content: "*";
+          color: #dc3545;
+          margin-left: 4px;
+        }
+
+        .pdf-page {
+          position: relative;  /* For absolute positioning of signature blocks */
+        }
       </style>
       <div class="esign-container">
         <div class="dev-mode-badge">Dev Mode</div>
@@ -822,6 +846,48 @@ class ESIGNComponent extends HTMLElement {
         canvasContext: canvas.getContext("2d"),
         viewport: scaledViewport,
       }).promise;
+
+      // Add signature blocks if in dev mode or if they exist in session data
+      if (this.devMode) {
+        // Mock signature block for dev mode
+        if (pageNum === 1) {
+          // Only on first page
+          const signatureBlock = document.createElement("div");
+          signatureBlock.className = "signature-block required";
+          signatureBlock.textContent = "Click to sign";
+          signatureBlock.style.left = "25%"; // From left
+          signatureBlock.style.top = "90%"; // From top
+          signatureBlock.style.width = "200px";
+          signatureBlock.style.textAlign = "center";
+          pageContainer.appendChild(signatureBlock);
+
+          signatureBlock.addEventListener("click", () => {
+            console.log("Signature block clicked");
+            // Trigger signing process
+            const startSigningButton =
+              this.shadowRoot.querySelector("#start-signing");
+            if (startSigningButton) {
+              startSigningButton.click();
+            }
+          });
+        }
+      } else if (this.sessionDetails?.signatureBlocks) {
+        // Handle real signature blocks from session data
+        const blocksForThisPage = this.sessionDetails.signatureBlocks.filter(
+          (block) => block.page === pageNum
+        );
+
+        blocksForThisPage.forEach((block) => {
+          const signatureBlock = document.createElement("div");
+          signatureBlock.className = `signature-block${
+            block.required ? " required" : ""
+          }`;
+          signatureBlock.textContent = block.label || "Click to sign";
+          signatureBlock.style.left = `${block.position.x}%`;
+          signatureBlock.style.top = `${block.position.y}%`;
+          pageContainer.appendChild(signatureBlock);
+        });
+      }
     }
   }
 
