@@ -135,7 +135,7 @@ class ESIGNComponent extends HTMLElement {
           height: 500px;
           margin: 20px 0;
           border: 1px solid #ccc;
-          overflow: auto;  /* Change from overflow-y to overflow */
+          overflow: auto;
           background: #f5f5f5;
           cursor: grab;
           position: relative;
@@ -148,16 +148,18 @@ class ESIGNComponent extends HTMLElement {
 
         #pages-container {
           position: relative;
-          min-width: 100%;
-          /* Add padding to ensure space around the PDF when zoomed */
+          min-width: fit-content;
           padding: 20px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
         }
         
         .pdf-page {
           background: white;
           box-shadow: 0 2px 5px rgba(0,0,0,0.1);
           margin: 0 auto;
-          max-width: none;  /* Allow page to expand beyond container width when zoomed */
+          max-width: none;
         }
         
         .loading {
@@ -661,10 +663,32 @@ class ESIGNComponent extends HTMLElement {
 
       // Update the zoom handler to include panning state
       const updateZoom = (newZoom) => {
+        // Get current scroll position and visible page before zoom
+        const currentScrollTop = pdfContainer.scrollTop;
+        const currentScrollLeft = pdfContainer.scrollLeft;
+        const containerHeight = pdfContainer.clientHeight;
+
+        // Calculate relative position (as percentage) before zoom
+        const scrollRatio = {
+          top: currentScrollTop / pdfContainer.scrollHeight,
+          left: currentScrollLeft / pdfContainer.scrollWidth,
+        };
+
+        // Update zoom
         this.currentZoom = newZoom;
         zoomInfo.textContent = `${Math.round(newZoom * 100)}%`;
         updatePanningState();
-        this.renderAllPages(pdf, pagesContainer);
+
+        // Render with new zoom
+        this.renderAllPages(pdf, pagesContainer).then(() => {
+          // Restore scroll position after render
+          requestAnimationFrame(() => {
+            pdfContainer.scrollTop =
+              scrollRatio.top * pdfContainer.scrollHeight;
+            pdfContainer.scrollLeft =
+              scrollRatio.left * pdfContainer.scrollWidth;
+          });
+        });
       };
 
       // Add zoom button handlers
@@ -743,10 +767,17 @@ class ESIGNComponent extends HTMLElement {
       const page = await pdf.getPage(pageNum);
 
       // Calculate scale to fit width
-      const containerWidth =
-        this.shadowRoot.querySelector(".pdf-container").clientWidth - 40;
+      const pdfContainer = this.shadowRoot.querySelector(".pdf-container");
+      const containerStyles = window.getComputedStyle(pdfContainer);
+      const containerPadding =
+        parseInt(containerStyles.paddingLeft) +
+        parseInt(containerStyles.paddingRight);
+
+      // Account for container padding and pages-container padding
+      const availableWidth = pdfContainer.clientWidth - containerPadding - 40;
+
       const viewport = page.getViewport({ scale: 1 });
-      const scale = (containerWidth / viewport.width) * this.currentZoom;
+      const scale = (availableWidth / viewport.width) * this.currentZoom;
       const scaledViewport = page.getViewport({ scale });
 
       // Create canvas for this page
