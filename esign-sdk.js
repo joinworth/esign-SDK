@@ -11,6 +11,8 @@ class ESIGNComponent extends HTMLElement {
     this.loadPDFJS();
     this.currentZoom = 1;
     this.zoomLevels = [0.5, 0.75, 1, 1.25, 1.5, 2];
+    this.signatureBlocks = new Set(); // Track all signature blocks
+    this.completedSignatures = new Set(); // Track completed signatures
   }
 
   // Add method to load PDF.js
@@ -286,12 +288,15 @@ class ESIGNComponent extends HTMLElement {
         }
 
         .signed-text {
+          position: absolute;
           font-family: 'Dancing Script', cursive;
           color: #000;
           font-size: 1.2em;
           padding: 5px;
           background: rgba(0,123,255,0.1);
           border-radius: 4px;
+          text-align: center;
+          width: 200px;
         }
       </style>
       <div class="esign-container">
@@ -886,6 +891,9 @@ class ESIGNComponent extends HTMLElement {
           signatureBlock.style.textAlign = "center";
           pageContainer.appendChild(signatureBlock);
 
+          // Add to tracking set
+          this.signatureBlocks.add(signatureBlock);
+
           signatureBlock.addEventListener("click", () => {
             console.log("Signature block clicked");
 
@@ -923,10 +931,20 @@ class ESIGNComponent extends HTMLElement {
             const handleSign = () => {
               const signedText = input.value.trim();
               if (signedText) {
+                // Preserve the original position and size
+                const originalLeft = signatureBlock.style.left;
+                const originalTop = signatureBlock.style.top;
+                const originalWidth = signatureBlock.style.width;
+
                 // Replace signature block with signed text
                 signatureBlock.className = "signed-text";
                 signatureBlock.textContent = signedText;
                 signatureBlock.style.cursor = "default";
+
+                // Restore position and size
+                signatureBlock.style.left = originalLeft;
+                signatureBlock.style.top = originalTop;
+                signatureBlock.style.width = originalWidth;
 
                 // Remove click handler
                 signatureBlock.replaceWith(signatureBlock.cloneNode(true));
@@ -935,8 +953,13 @@ class ESIGNComponent extends HTMLElement {
                 overlay.remove();
                 dialog.remove();
 
-                // Trigger signing process
-                this.startSigning(this.getAttribute("session-token"));
+                // Add to completed signatures
+                this.completedSignatures.add(signatureBlock);
+
+                // Check if all required signatures are complete
+                if (this.areAllSignaturesComplete()) {
+                  this.startSigning(this.getAttribute("session-token"));
+                }
               }
             };
 
@@ -962,6 +985,9 @@ class ESIGNComponent extends HTMLElement {
           signatureBlock.style.top = `${block.position.y}%`;
           pageContainer.appendChild(signatureBlock);
 
+          // Add to tracking set
+          this.signatureBlocks.add(signatureBlock);
+
           signatureBlock.addEventListener("click", () => {
             console.log("Signature block clicked");
 
@@ -999,10 +1025,20 @@ class ESIGNComponent extends HTMLElement {
             const handleSign = () => {
               const signedText = input.value.trim();
               if (signedText) {
+                // Preserve the original position and size
+                const originalLeft = signatureBlock.style.left;
+                const originalTop = signatureBlock.style.top;
+                const originalWidth = signatureBlock.style.width;
+
                 // Replace signature block with signed text
                 signatureBlock.className = "signed-text";
                 signatureBlock.textContent = signedText;
                 signatureBlock.style.cursor = "default";
+
+                // Restore position and size
+                signatureBlock.style.left = originalLeft;
+                signatureBlock.style.top = originalTop;
+                signatureBlock.style.width = originalWidth;
 
                 // Remove click handler
                 signatureBlock.replaceWith(signatureBlock.cloneNode(true));
@@ -1011,8 +1047,13 @@ class ESIGNComponent extends HTMLElement {
                 overlay.remove();
                 dialog.remove();
 
-                // Trigger signing process
-                this.startSigning(this.getAttribute("session-token"));
+                // Add to completed signatures
+                this.completedSignatures.add(signatureBlock);
+
+                // Check if all required signatures are complete
+                if (this.areAllSignaturesComplete()) {
+                  this.startSigning(this.getAttribute("session-token"));
+                }
               }
             };
 
@@ -1024,6 +1065,25 @@ class ESIGNComponent extends HTMLElement {
         });
       }
     }
+  }
+
+  // Add helper method to check if all required signatures are complete
+  areAllSignaturesComplete() {
+    // In dev mode, just check if any signature is complete (since we only have one)
+    if (this.devMode) {
+      return this.completedSignatures.size > 0;
+    }
+
+    // In production, check that all required signature blocks are signed
+    for (const block of this.signatureBlocks) {
+      if (
+        block.classList.contains("required") &&
+        !this.completedSignatures.has(block)
+      ) {
+        return false;
+      }
+    }
+    return true;
   }
 
   // Add disconnectedCallback to clean up event listeners
