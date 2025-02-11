@@ -589,9 +589,12 @@ class ESIGNComponent extends HTMLElement {
   async loadPDFPreview() {
     try {
       // In dev mode, use a sample PDF with CORS handling
+      // const pdfUrl = this.devMode
+      //   ? "https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf" // CORS-friendly sample PDF
+      //   : `${this.serviceUrl}/documents/${this.documentId}/preview`;
       const pdfUrl = this.devMode
         ? "https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf" // CORS-friendly sample PDF
-        : `${this.serviceUrl}/documents/${this.documentId}/preview`;
+        : "./8821.pdf";
 
       // Show loading state
       const container = this.shadowRoot.querySelector("#pdf-viewer-container");
