@@ -73,6 +73,7 @@ class ESIGNComponent extends HTMLElement {
     this.templateId = sessionDetails.templateId;
     this.signerFields = sessionDetails.signer;
     this.documentFields = sessionDetails.documentFields;
+    this.documentId = sessionDetails.documentId;
 
     // Render the component's UI
     this.shadowRoot.innerHTML = `
