@@ -594,7 +594,7 @@ class ESIGNComponent extends HTMLElement {
       //   : `${this.serviceUrl}/documents/${this.documentId}/preview`;
       const pdfUrl = this.devMode
         ? "https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf" // CORS-friendly sample PDF
-        : "./8821.pdf";
+        : "https://worthai-dev-assets.s3.us-east-1.amazonaws.com/8821.pdf";
 
       // Show loading state
       const container = this.shadowRoot.querySelector("#pdf-viewer-container");
@@ -612,7 +612,7 @@ class ESIGNComponent extends HTMLElement {
       // Configure PDF.js for potential CORS issues
       const loadingTask = window.pdfjsLib.getDocument({
         url: pdfUrl,
-        withCredentials: !this.devMode, // Enable credentials for production URLs
+        withCredentials: false, // Enable credentials for production URLs
         cMapUrl:
           "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/",
         cMapPacked: true,
