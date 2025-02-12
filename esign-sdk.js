@@ -49,6 +49,8 @@ class ESIGNComponent extends HTMLElement {
 
     // Extract all session information from the JWT
     const sessionDetails = this.decodeSessionToken(sessionToken);
+    this.sessionDetails = sessionDetails;
+    this.sessionDetails.signatureBlocks = [{page:1, position:{x:25, y:90}}]
 
     // Skip validation in dev mode
     if (!this.devMode && !this.validateSessionDetails(sessionDetails)) {
@@ -1030,8 +1032,13 @@ class ESIGNComponent extends HTMLElement {
             block.required ? " required" : ""
           }`;
           signatureBlock.textContent = block.label || "Click to sign";
-          signatureBlock.style.left = `${block.position.x}%`;
-          signatureBlock.style.top = `${block.position.y}%`;
+          // signatureBlock.style.left = `${block.position.x}%`;
+          // signatureBlock.style.top = `${block.position.y}%`;
+          signatureBlock.style.left = "25%"; // From left
+          signatureBlock.style.top = "90%"; // From top
+          signatureBlock.style.width = "200px";
+          // signatureBlock.style.alignSelf = "right"
+          signatureBlock.style.textAlign = "center";
           pageContainer.appendChild(signatureBlock);
 
           // Add to tracking set
