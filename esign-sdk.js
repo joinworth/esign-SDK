@@ -139,7 +139,7 @@ class ESIGNComponent extends HTMLElement {
         }
         .pdf-container {
           width: 100%;
-          height: 500px;
+          height: 250px;
           margin: 20px 0;
           border: 1px solid #ccc;
           overflow: auto;
