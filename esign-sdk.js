@@ -50,7 +50,9 @@ class ESIGNComponent extends HTMLElement {
     // Extract all session information from the JWT
     const sessionDetails = this.decodeSessionToken(sessionToken);
     this.sessionDetails = sessionDetails;
-    this.sessionDetails.signatureBlocks = [{page:1, position:{x:25, y:90}}]
+    this.sessionDetails.signatureBlocks = [
+      { page: 1, position: { x: 25, y: 90 } },
+    ];
 
     // Skip validation in dev mode
     if (!this.devMode && !this.validateSessionDetails(sessionDetails)) {
@@ -612,12 +614,32 @@ class ESIGNComponent extends HTMLElement {
       }
 
       // Configure PDF.js for potential CORS issues
-      const loadingTask = window.pdfjsLib.getDocument({
-        url: pdfUrl,
-        withCredentials: false, // Enable credentials for production URLs
+      // Configure URL and options based on dev mode
+      let url;
+      let options = {
         cMapUrl:
           "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/",
         cMapPacked: true,
+      };
+
+      if (this.devMode) {
+        url = pdfUrl;
+        options.withCredentials = false;
+      } else {
+        const jwt = this.getAttribute("session-token");
+        const businessId = JSON.parse(atob(jwt.split(".")[1])).business_id;
+        url = `${this.serviceUrl}/sessions/business/${businessId}/template`;
+        options.withCredentials = true;
+        // Only add headers in production mode
+        options.httpHeaders = {
+          Authorization: `Bearer ${this.getAttribute("session-token")}`,
+          "Content-Type": "application/json",
+        };
+      }
+
+      const loadingTask = window.pdfjsLib.getDocument({
+        url,
+        ...options,
       });
 
       // Add loading progress
