@@ -31,6 +31,18 @@ class ESIGNComponent extends HTMLElement {
     // Configure worker
     window.pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+    // Load html2canvas
+    if (!window.html2canvas) {
+      const html2canvasScript = document.createElement("script");
+      html2canvasScript.src =
+        "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      html2canvasScript.async = true;
+      document.head.appendChild(html2canvasScript);
+
+      // Wait for html2canvas to load
+      await new Promise((resolve) => (html2canvasScript.onload = resolve));
+    }
   }
 
   connectedCallback() {
@@ -521,18 +533,71 @@ class ESIGNComponent extends HTMLElement {
     try {
       let result;
 
+      // Collect all signature data
+      const signaturePromises = Array.from(this.completedSignatures).map(
+        async (signatureBlock) => {
+          // Create a clean clone of the signature for capturing
+          const signatureClone = signatureBlock.cloneNode(true);
+          signatureClone.style.position = "fixed";
+          signatureClone.style.left = "-9999px";
+          document.body.appendChild(signatureClone);
+
+          // Convert signature to image
+          const canvas = await html2canvas(signatureClone, {
+            backgroundColor: "transparent",
+            scale: 2, // Higher resolution
+          });
+
+          // Remove the clone
+          document.body.removeChild(signatureClone);
+
+          // Get base64 image data
+          const signatureImage = canvas.toDataURL("image/png");
+
+          // Get signature position from original block
+          const rect = signatureBlock.getBoundingClientRect();
+          // Use stored page number instead of looking for parent
+          const pageNumber = parseInt(signatureBlock.dataset.pageNumber) || 1;
+
+          // Convert screen coordinates to PDF points (72 points per inch)
+          // Assuming standard 96 DPI screen resolution
+          const pdfScale = 72 / 96;
+
+          return {
+            signatureImage,
+            position: {
+              pageNumber,
+              x: Math.round(rect.x * pdfScale),
+              y: Math.round(rect.y * pdfScale),
+              width: Math.round(rect.width * pdfScale),
+              height: Math.round(rect.height * pdfScale),
+            },
+          };
+        }
+      );
+
+      const signatures = await Promise.all(signaturePromises);
+
+      // Prepare signing request payload
+      const signingData = {
+        templateId: this.templateId,
+        documentId: this.documentId,
+        signer: this.signerFields,
+        documentFields: this.documentFields,
+        signatureData: signatures[0], // Use first signature for now
+      };
+
       if (this.devMode) {
         console.log("Dev mode: Mocking signing API call", {
           serviceUrl: this.serviceUrl,
           sessionToken,
-          templateId: this.templateId,
-          signer: this.signerFields,
-          documentFields: this.documentFields,
+          signingData,
         });
         result = await this.mockSigningProcess(sessionToken);
       } else {
         const jwt = this.getAttribute("session-token");
         const businessId = JSON.parse(atob(jwt.split(".")[1])).business_id;
+
         const response = await fetch(
           `${this.serviceUrl}/sessions/business/${businessId}/sign`,
           {
@@ -541,12 +606,7 @@ class ESIGNComponent extends HTMLElement {
               "Content-Type": "application/json",
               Authorization: `Bearer ${sessionToken}`,
             },
-            body: JSON.stringify({
-              templateId: this.templateId,
-              signer: this.signerFields,
-              documentFields: this.documentFields,
-              documentId: this.decodeSessionToken(sessionToken).documentId,
-            }),
+            body: JSON.stringify(signingData),
           }
         );
 
@@ -560,13 +620,12 @@ class ESIGNComponent extends HTMLElement {
       // Dispatch custom event with signing result
       const event = new CustomEvent("signing-complete", {
         bubbles: true,
-        composed: true, // Allows event to cross shadow DOM boundary
+        composed: true,
         detail: result,
       });
       this.dispatchEvent(event);
     } catch (error) {
       console.error("Error during signing process:", error);
-      // Dispatch error event
       const event = new CustomEvent("signing-error", {
         bubbles: true,
         composed: true,
@@ -964,6 +1023,8 @@ class ESIGNComponent extends HTMLElement {
           signatureBlock.style.top = "90%"; // From top
           signatureBlock.style.width = "200px";
           signatureBlock.style.textAlign = "center";
+          // Store the page number directly on the element
+          signatureBlock.dataset.pageNumber = pageNum;
           pageContainer.appendChild(signatureBlock);
 
           // Add to tracking set
