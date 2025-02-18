@@ -531,19 +531,24 @@ class ESIGNComponent extends HTMLElement {
         });
         result = await this.mockSigningProcess(sessionToken);
       } else {
-        const response = await fetch(`${this.serviceUrl}/sign`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${sessionToken}`,
-          },
-          body: JSON.stringify({
-            templateId: this.templateId,
-            signer: this.signerFields,
-            documentFields: this.documentFields,
-            documentId: this.decodeSessionToken(sessionToken).documentId,
-          }),
-        });
+        const jwt = this.getAttribute("session-token");
+        const businessId = JSON.parse(atob(jwt.split(".")[1])).business_id;
+        const response = await fetch(
+          `${this.serviceUrl}/sessions/business/${businessId}/sign`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${sessionToken}`,
+            },
+            body: JSON.stringify({
+              templateId: this.templateId,
+              signer: this.signerFields,
+              documentFields: this.documentFields,
+              documentId: this.decodeSessionToken(sessionToken).documentId,
+            }),
+          }
+        );
 
         if (!response.ok) {
           throw new Error("Failed to initiate signing");
