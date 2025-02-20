@@ -556,7 +556,6 @@ class ESIGNComponent extends HTMLElement {
 
           // Get signature position from original block
           const rect = signatureBlock.getBoundingClientRect();
-          // Use stored page number instead of looking for parent
           const pageNumber = parseInt(signatureBlock.dataset.pageNumber) || 1;
 
           // Convert screen coordinates to PDF points (72 points per inch)
@@ -578,13 +577,23 @@ class ESIGNComponent extends HTMLElement {
 
       const signatures = await Promise.all(signaturePromises);
 
-      // Prepare signing request payload
+      // Prepare signing request payload with the correct structure
+      // TODO: This is a temporary solution to get the signatures working
       const signingData = {
         templateId: this.templateId,
         documentId: this.documentId,
         signer: this.signerFields,
         documentFields: this.documentFields,
-        signatureData: signatures[0], // Use first signature for now
+        signatureData: {
+          signatureImage: signatures[0].signatureImage,
+          position: {
+            pageNumber: 1,
+            x: 10,
+            y: 79,
+            width: 200,
+            height: 50,
+          },
+        },
       };
 
       if (this.devMode) {
