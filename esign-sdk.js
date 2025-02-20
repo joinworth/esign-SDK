@@ -1019,8 +1019,8 @@ class ESIGNComponent extends HTMLElement {
           const signatureBlock = document.createElement("div");
           signatureBlock.className = "signature-block required";
           signatureBlock.textContent = "Click to sign";
-          signatureBlock.style.left = "25%"; // From left
-          signatureBlock.style.top = "90%"; // From top
+          signatureBlock.style.left = "10%"; // From left
+          signatureBlock.style.top = "79%"; // From top
           signatureBlock.style.width = "200px";
           signatureBlock.style.textAlign = "center";
           // Store the page number directly on the element
@@ -1122,8 +1122,8 @@ class ESIGNComponent extends HTMLElement {
           signatureBlock.textContent = block.label || "Click to sign";
           // signatureBlock.style.left = `${block.position.x}%`;
           // signatureBlock.style.top = `${block.position.y}%`;
-          signatureBlock.style.left = "25%"; // From left
-          signatureBlock.style.top = "90%"; // From top
+          signatureBlock.style.left = "10%"; // From left
+          signatureBlock.style.top = "79%"; // From top
           signatureBlock.style.width = "200px";
           // signatureBlock.style.alignSelf = "right"
           signatureBlock.style.textAlign = "center";
