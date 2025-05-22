@@ -1050,10 +1050,19 @@ class ESIGNComponent extends HTMLElement {
             dialog.className = "signature-input-dialog";
             dialog.innerHTML = `
               <h3>Enter your signature</h3>
-              <input type="text" placeholder="Type your name" style="margin: 10px 0; padding: 5px;">
+              <div class="consent-statement" style="margin-bottom: 15px; font-size: 12px; line-height: 1.4; max-width: 400px; color: #555;">
+                By checking this box and clicking "Sign Document", you (i) consent to conduct business electronically and to receive all related disclosures, agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, and (iii) agree that your electronic signature is legally binding and that you intend to electronically sign this document. You may withdraw your consent or request a paper copy by contacting us at support@joinworth.com or visiting www.joinworth.com.
+              </div>
+              <div style="margin-bottom: 10px;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                  <input type="checkbox" id="consent-checkbox" style="margin-right: 8px;" required>
+                  <span style="font-size: 14px;">I agree to the terms above</span>
+                </label>
+              </div>
+              <input type="text" placeholder="Type your name" style="margin: 10px 0; padding: 5px; width: 100%;">
               <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
-                <button class="esign-button" style="background: #6c757d;">Cancel</button>
-                <button class="esign-button">Sign</button>
+                <button class="esign-button cancel-button" style="background: #6c757d;">Cancel</button>
+                <button class="esign-button" id="sign-button" disabled>Sign Document</button>
               </div>
             `;
 
@@ -1062,11 +1071,19 @@ class ESIGNComponent extends HTMLElement {
             this.shadowRoot.appendChild(dialog);
 
             // Focus input
-            const input = dialog.querySelector("input");
+            const input = dialog.querySelector("input[type='text']");
             input.focus();
 
+            // Handle consent checkbox
+            const consentCheckbox = dialog.querySelector("#consent-checkbox");
+            const signButton = dialog.querySelector("#sign-button");
+
+            consentCheckbox.addEventListener("change", () => {
+              signButton.disabled = !consentCheckbox.checked;
+            });
+
             // Handle cancel
-            const [cancelBtn, signBtn] = dialog.querySelectorAll("button");
+            const cancelBtn = dialog.querySelector(".cancel-button");
             cancelBtn.addEventListener("click", () => {
               overlay.remove();
               dialog.remove();
@@ -1076,6 +1093,12 @@ class ESIGNComponent extends HTMLElement {
             const handleSign = () => {
               const signedText = input.value.trim();
               if (signedText) {
+                // Check if consent checkbox is checked
+                if (!consentCheckbox.checked) {
+                  alert("Please check the consent box before signing");
+                  return;
+                }
+
                 // Preserve the original position and size
                 const originalLeft = signatureBlock.style.left;
                 const originalTop = signatureBlock.style.top;
@@ -1111,9 +1134,9 @@ class ESIGNComponent extends HTMLElement {
               }
             };
 
-            signBtn.addEventListener("click", handleSign);
+            signButton.addEventListener("click", handleSign);
             input.addEventListener("keypress", (e) => {
-              if (e.key === "Enter") handleSign();
+              if (e.key === "Enter" && !signButton.disabled) handleSign();
             });
           });
         }
@@ -1152,10 +1175,19 @@ class ESIGNComponent extends HTMLElement {
             dialog.className = "signature-input-dialog";
             dialog.innerHTML = `
               <h3>Enter your signature</h3>
-              <input type="text" placeholder="Type your name" style="margin: 10px 0; padding: 5px;">
+              <div class="consent-statement" style="margin-bottom: 15px; font-size: 12px; line-height: 1.4; max-width: 400px; color: #555;">
+                By checking this box and clicking "Sign Document", you (i) consent to conduct business electronically and to receive all related disclosures, agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, and (iii) agree that your electronic signature is legally binding and that you intend to electronically sign this document. You may withdraw your consent or request a paper copy by contacting us at support@joinworth.com or visiting www.joinworth.com.
+              </div>
+              <div style="margin-bottom: 10px;">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                  <input type="checkbox" id="consent-checkbox" style="margin-right: 8px;" required>
+                  <span style="font-size: 14px;">I agree to the terms above</span>
+                </label>
+              </div>
+              <input type="text" placeholder="Type your name" style="margin: 10px 0; padding: 5px; width: 100%;">
               <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
-                <button class="esign-button" style="background: #6c757d;">Cancel</button>
-                <button class="esign-button">Sign</button>
+                <button class="esign-button cancel-button" style="background: #6c757d;">Cancel</button>
+                <button class="esign-button" id="sign-button" disabled>Sign Document</button>
               </div>
             `;
 
@@ -1164,11 +1196,19 @@ class ESIGNComponent extends HTMLElement {
             this.shadowRoot.appendChild(dialog);
 
             // Focus input
-            const input = dialog.querySelector("input");
+            const input = dialog.querySelector("input[type='text']");
             input.focus();
 
+            // Handle consent checkbox
+            const consentCheckbox = dialog.querySelector("#consent-checkbox");
+            const signButton = dialog.querySelector("#sign-button");
+
+            consentCheckbox.addEventListener("change", () => {
+              signButton.disabled = !consentCheckbox.checked;
+            });
+
             // Handle cancel
-            const [cancelBtn, signBtn] = dialog.querySelectorAll("button");
+            const cancelBtn = dialog.querySelector(".cancel-button");
             cancelBtn.addEventListener("click", () => {
               overlay.remove();
               dialog.remove();
@@ -1178,6 +1218,12 @@ class ESIGNComponent extends HTMLElement {
             const handleSign = () => {
               const signedText = input.value.trim();
               if (signedText) {
+                // Check if consent checkbox is checked
+                if (!consentCheckbox.checked) {
+                  alert("Please check the consent box before signing");
+                  return;
+                }
+
                 // Preserve the original position and size
                 const originalLeft = signatureBlock.style.left;
                 const originalTop = signatureBlock.style.top;
@@ -1213,9 +1259,9 @@ class ESIGNComponent extends HTMLElement {
               }
             };
 
-            signBtn.addEventListener("click", handleSign);
+            signButton.addEventListener("click", handleSign);
             input.addEventListener("keypress", (e) => {
-              if (e.key === "Enter") handleSign();
+              if (e.key === "Enter" && !signButton.disabled) handleSign();
             });
           });
         });
