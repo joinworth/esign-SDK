@@ -13,6 +13,10 @@ class ESIGNComponent extends HTMLElement {
     this.zoomLevels = [0.5, 0.75, 1, 1.25, 1.5, 2];
     this.signatureBlocks = new Set(); // Track all signature blocks
     this.completedSignatures = new Set(); // Track completed signatures
+
+    // Initialize signature navigation properties
+    this.currentSignatureIndex = 0;
+    this.orderedSignatureBlocks = [];
   }
 
   // Add method to load PDF.js
@@ -62,9 +66,6 @@ class ESIGNComponent extends HTMLElement {
     // Extract all session information from the JWT
     const sessionDetails = this.decodeSessionToken(sessionToken);
     this.sessionDetails = sessionDetails;
-    this.sessionDetails.signatureBlocks = [
-      { page: 1, position: { x: 25, y: 90 } },
-    ];
 
     // Skip validation in dev mode
     if (!this.devMode && !this.validateSessionDetails(sessionDetails)) {
@@ -91,6 +92,17 @@ class ESIGNComponent extends HTMLElement {
     this.documentFields = sessionDetails.documentFields;
     this.documentId = sessionDetails.documentId;
 
+    // Initialize component with loading state
+    this.renderInitialUI();
+
+    // Initialize signature management and load PDF asynchronously
+    this.initializeComponentAsync();
+  }
+
+  /**
+   * Renders the initial UI with loading state
+   */
+  renderInitialUI() {
     // Render the component's UI
     this.shadowRoot.innerHTML = `
       <style>
@@ -115,6 +127,10 @@ class ESIGNComponent extends HTMLElement {
         }
         .esign-button:hover {
           background-color: #0056b3;
+        }
+        .esign-button:disabled {
+          background-color: #6c757d;
+          cursor: not-allowed;
         }
         /* Development mode indicator */
         .dev-mode-badge {
@@ -247,131 +263,263 @@ class ESIGNComponent extends HTMLElement {
           font-size: 12px;
         }
 
-        .loading-overlay {
+        .signature-block {
           position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(255, 255, 255, 0.9);
+          border: 2px dashed #007bff;
+          background: rgba(0, 123, 255, 0.1);
+          cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 2;
-        }
-
-        .signature-block {
-          position: absolute;
-          background: rgba(0, 123, 255, 0.1);
-          border: 2px solid #007bff;
-          border-radius: 4px;
-          padding: 10px;
-          cursor: pointer;
-          transition: background 0.2s;
+          font-size: 12px;
+          color: #007bff;
+          font-weight: bold;
+          text-align: center;
+          box-sizing: border-box;
+          transition: all 0.2s ease;
         }
 
         .signature-block:hover {
           background: rgba(0, 123, 255, 0.2);
-        }
-
-        .signature-block.required::after {
-          content: "*";
-          color: #dc3545;
-          margin-left: 4px;
-        }
-
-        .pdf-page {
-          position: relative;  /* For absolute positioning of signature blocks */
-        }
-
-        .signature-input-dialog {
-          position: fixed;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          background: white;
-          padding: 20px;
-          border-radius: 8px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-          z-index: 3;
-        }
-
-        .signature-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0,0,0,0.5);
-          z-index: 2;
-        }
-
-        .signed-text {
-          position: absolute;
-          font-family: 'Dancing Script', cursive;
-          color: #000;
-          font-size: 1.2em;
-          padding: 5px;
-          background: rgba(0,123,255,0.1);
-          border-radius: 4px;
-          text-align: center;
-          width: 200px;
-        }
-
-        .signature-status {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          background: white;
-          padding: 10px 15px;
-          border-bottom: 1px solid #ccc;
-          font-size: 14px;
-          text-align: center;
-          border-radius: 0 0 4px 4px;
-        }
-
-        .signature-block {
-          position: relative;
-        }
-
-        .signature-block::before {
-          content: "Required";
-          position: absolute;
-          top: -20px;
-          left: 0;
-          font-size: 12px;
-          color: #dc3545;
-          opacity: 0.8;
+          border-color: #0056b3;
         }
 
         .signature-block.completed {
           border-color: #28a745;
           background: rgba(40, 167, 69, 0.1);
-        }
-
-        .signature-block.completed::before {
-          content: "✓ Signed";
           color: #28a745;
         }
+
+        .signature-block.required {
+          border-color: #dc3545;
+          background: rgba(220, 53, 69, 0.1);
+          color: #dc3545;
+        }
+
+        .signature-block.initial {
+          border-style: dotted;
+          font-size: 10px;
+        }
+
+        .signature-block.highlighted {
+          animation: pulse 1s ease-in-out;
+        }
+
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+
+        .signature-modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+
+        .signature-modal-content {
+          background: white;
+          padding: 20px;
+          border-radius: 8px;
+          max-width: 500px;
+          width: 90%;
+          max-height: 80vh;
+          overflow-y: auto;
+        }
+
+        .signature-canvas {
+          border: 1px solid #ccc;
+          width: 100%;
+          max-width: 400px;
+          height: 150px;
+          cursor: crosshair;
+        }
+
+        .signature-modal-buttons {
+          display: flex;
+          gap: 10px;
+          margin-top: 15px;
+          justify-content: flex-end;
+        }
+
+        .modal-button {
+          padding: 8px 16px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          cursor: pointer;
+          background: white;
+        }
+
+        .modal-button.primary {
+          background: #007bff;
+          color: white;
+          border-color: #007bff;
+        }
+
+        .modal-button:hover {
+          opacity: 0.8;
+        }
+
+        .signature-progress {
+          margin: 10px 0;
+          padding: 10px;
+          background: #f8f9fa;
+          border-radius: 4px;
+          font-size: 14px;
+        }
+
+        .progress-bar {
+          width: 100%;
+          height: 8px;
+          background: #e9ecef;
+          border-radius: 4px;
+          overflow: hidden;
+          margin: 5px 0;
+        }
+
+        .progress-fill {
+          height: 100%;
+          background: #007bff;
+          transition: width 0.3s ease;
+        }
       </style>
+
       <div class="esign-container">
         <div class="dev-mode-badge">Dev Mode</div>
-        <p>Ready to sign document ID: ${sessionDetails.documentId}</p>
-        <div class="pdf-container">
-          <div id="pdf-viewer-container">
-            <canvas id="pdf-canvas"></canvas>
+        <h2>Document Signing</h2>
+        
+        <!-- Field Preview Section -->
+        ${this.renderFieldPreview()}
+        
+        <!-- Signature Progress -->
+        <div class="signature-progress" id="signature-progress" style="display: none;">
+          <div>Signature Progress: <span id="progress-text">0/0</span></div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
           </div>
         </div>
-        ${this.renderFieldPreview()}
-        <div class="signature-status">
-          Signatures: <span id="signatures-complete">0</span>/<span id="signatures-required">0</span>
+        
+        <!-- PDF Container -->
+        <div id="pdf-viewer-container" class="pdf-container">
+          <div class="loading">Loading template configuration...</div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div style="margin-top: 20px;">
+          <button id="start-signing" class="esign-button" style="display: none;" disabled>
+            Complete Signing
+          </button>
         </div>
       </div>
     `;
+  }
 
-    // Load and render PDF
-    this.loadPDFPreview();
+  /**
+   * Initializes the component asynchronously after UI is rendered
+   */
+  async initializeComponentAsync() {
+    try {
+      // Initialize signature management first
+      await this.initializeSignatureManagement();
+
+      // Add event listeners
+      const signButton = this.shadowRoot.querySelector("#start-signing");
+      if (signButton) {
+        signButton.addEventListener("click", () => {
+          this.startSigning(this.getAttribute("session-token"));
+        });
+      }
+
+      // Load PDF preview after signature management is initialized
+      await this.loadPDFPreview();
+    } catch (error) {
+      console.error("Error initializing component:", error);
+      this.renderError(`Initialization failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Initializes signature management system with template configuration
+   */
+  async initializeSignatureManagement() {
+    try {
+      // Fetch template configuration
+      const templateConfig = await this.fetchTemplateConfig(this.templateId);
+      this.templateConfig = templateConfig;
+
+      // Parse signature blocks from template config
+      this.signatureBlocks = this.parseSignatureBlocks(templateConfig);
+
+      // Backward compatibility: use session token signature blocks if no template config
+      if (
+        this.signatureBlocks.length === 0 &&
+        this.sessionDetails.signatureBlocks
+      ) {
+        this.signatureBlocks = this.sessionDetails.signatureBlocks.map(
+          (block, index) => ({
+            id: `session_signature_${index}`,
+            page: block.page,
+            position: block.position,
+            dimensions: { width: 200, height: 50 },
+            type: "signature",
+            required: true,
+            completed: false,
+          })
+        );
+      }
+
+      // Initialize signature type management
+      this.capturedSignaturesByType = new Map(); // Store captured signatures by type
+      this.signatureTypeStatus = new Map(); // Track if we've shown modal for each type
+
+      // Initialize tracking for each signature type found in blocks
+      const signatureTypes = [
+        ...new Set(this.signatureBlocks.map((block) => block.type)),
+      ];
+      signatureTypes.forEach((type) => {
+        this.signatureTypeStatus.set(type, {
+          modalShown: false,
+          captured: false,
+        });
+      });
+
+      console.log("Signature management initialized:", {
+        templateConfig: this.templateConfig,
+        signatureBlocks: this.signatureBlocks,
+        totalSignatures: this.signatureBlocks.length,
+        signatureTypes: signatureTypes,
+        typeStatus: this.signatureTypeStatus,
+      });
+    } catch (error) {
+      console.error("Error initializing signature management:", error);
+      // Fall back to default signature block
+      this.signatureBlocks = [
+        {
+          id: "fallback_signature",
+          page: 1,
+          position: { x: 25, y: 90 },
+          dimensions: { width: 200, height: 50 },
+          type: "signature",
+          required: true,
+          completed: false,
+        },
+      ];
+
+      // Initialize fallback type tracking
+      this.capturedSignaturesByType = new Map();
+      this.signatureTypeStatus = new Map();
+      this.signatureTypeStatus.set("signature", {
+        modalShown: false,
+        captured: false,
+      });
+    }
   }
 
   /**
@@ -494,9 +642,8 @@ class ESIGNComponent extends HTMLElement {
   }
 
   /**
-   * Decodes the JWT token to extract session information
-   * Note: This is for display purposes only, actual validation happens server-side
-   * @param {string} token JWT session token
+   * Decodes the JWT session token to extract session details
+   * @param {string} token JWT token to decode
    * @returns {Object} Decoded token payload
    */
   decodeSessionToken(token) {
@@ -509,6 +656,141 @@ class ESIGNComponent extends HTMLElement {
       console.error("Error decoding session token:", error);
       return { documentId: "Unknown" };
     }
+  }
+
+  /**
+   * Fetches template configuration from the API to get signature placement and requirements
+   * @param {string} templateId Template ID to fetch configuration for
+   * @returns {Promise<Object>} Template configuration with signature blocks
+   */
+  async fetchTemplateConfig(templateId) {
+    try {
+      if (this.devMode) {
+        console.log("Dev mode: Mocking template config API call", {
+          templateId,
+        });
+        return await this.mockTemplateConfig(templateId);
+      }
+
+      const sessionToken = this.getAttribute("session-token");
+      const response = await fetch(
+        `${this.serviceUrl}/templates/${templateId}/config`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch template config: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("Template configuration loaded:", result);
+      return result.data;
+    } catch (error) {
+      console.error("Error fetching template config:", error);
+      // Fall back to default single signature for backward compatibility
+      return this.getDefaultTemplateConfig();
+    }
+  }
+
+  /**
+   * Provides mock template configuration for development mode
+   * @param {string} templateId Template ID (for logging)
+   * @returns {Promise<Object>} Mock template configuration
+   */
+  async mockTemplateConfig(templateId) {
+    // Simulate API delay
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    return {
+      templateId: templateId,
+      templateName: "Development Template",
+      fields: [
+        {
+          pdfFieldId: "Legal Name",
+          dataField: "documentFields.legalName",
+        },
+      ],
+      signatures: {
+        primary_signature: {
+          defaultPage: 1,
+          defaultX: 25,
+          defaultY: 80,
+          defaultWidth: 200,
+          defaultHeight: 50,
+          type: "signature",
+          required: true,
+        },
+        initials_page1: {
+          defaultPage: 1,
+          defaultX: 70,
+          defaultY: 80,
+          defaultWidth: 100,
+          defaultHeight: 30,
+          type: "initial",
+          required: false,
+        },
+      },
+    };
+  }
+
+  /**
+   * Provides default template configuration for backward compatibility
+   * @returns {Object} Default single signature configuration
+   */
+  getDefaultTemplateConfig() {
+    return {
+      templateId: this.templateId || "default",
+      templateName: "Default Template",
+      fields: [],
+      signatures: {
+        default_signature: {
+          defaultPage: 1,
+          defaultX: 25,
+          defaultY: 90,
+          defaultWidth: 200,
+          defaultHeight: 50,
+          type: "signature",
+          required: true,
+        },
+      },
+    };
+  }
+
+  /**
+   * Converts template signature configuration to internal signature blocks format
+   * @param {Object} templateConfig Template configuration from API
+   * @returns {Array} Array of signature block objects
+   */
+  parseSignatureBlocks(templateConfig) {
+    const signatureBlocks = [];
+
+    if (templateConfig.signatures) {
+      Object.entries(templateConfig.signatures).forEach(([id, config]) => {
+        signatureBlocks.push({
+          id: id,
+          page: config.defaultPage,
+          position: {
+            x: config.defaultX,
+            y: config.defaultY,
+          },
+          dimensions: {
+            width: config.defaultWidth,
+            height: config.defaultHeight,
+          },
+          type: config.type,
+          required: config.required,
+          completed: false,
+        });
+      });
+    }
+
+    return signatureBlocks;
   }
 
   /**
@@ -533,66 +815,40 @@ class ESIGNComponent extends HTMLElement {
     try {
       let result;
 
-      // Collect all signature data
-      const signaturePromises = Array.from(this.completedSignatures).map(
-        async (signatureBlock) => {
-          // Create a clean clone of the signature for capturing
-          const signatureClone = signatureBlock.cloneNode(true);
-          signatureClone.style.position = "fixed";
-          signatureClone.style.left = "-9999px";
-          document.body.appendChild(signatureClone);
+      // Collect completed signatures from the signatureBlocks array
+      const completedSignatures = this.signatureBlocks
+        ? this.signatureBlocks.filter((block) => block.completed)
+        : [];
 
-          // Convert signature to image
-          const canvas = await html2canvas(signatureClone, {
-            backgroundColor: "transparent",
-            scale: 2, // Higher resolution
-          });
-
-          // Remove the clone
-          document.body.removeChild(signatureClone);
-
-          // Get base64 image data
-          const signatureImage = canvas.toDataURL("image/png");
-
-          // Get signature position from original block
-          const rect = signatureBlock.getBoundingClientRect();
-          const pageNumber = parseInt(signatureBlock.dataset.pageNumber) || 1;
-
-          // Convert screen coordinates to PDF points (72 points per inch)
-          // Assuming standard 96 DPI screen resolution
-          const pdfScale = 72 / 96;
-
-          return {
-            signatureImage,
-            position: {
-              pageNumber,
-              x: Math.round(rect.x * pdfScale),
-              y: Math.round(rect.y * pdfScale),
-              width: Math.round(rect.width * pdfScale),
-              height: Math.round(rect.height * pdfScale),
-            },
-          };
-        }
+      console.log(
+        "Starting signing process with signatures:",
+        completedSignatures
       );
 
-      const signatures = await Promise.all(signaturePromises);
+      // Prepare signatures array for the API
+      const signatures = completedSignatures.map((block) => ({
+        signatureImage: `data:image/png;base64,${this.generateMockSignatureImage(
+          block.signatureText
+        )}`,
+        position: {
+          pageNumber: block.page,
+          x: block.position.x,
+          y: block.position.y,
+          width: block.dimensions.width,
+          height: block.dimensions.height,
+        },
+        type: block.type,
+        id: block.id,
+      }));
 
-      // Prepare signing request payload with the correct structure
-      // TODO: This is a temporary solution to get the signatures working
+      // Prepare signing request payload with multiple signatures support
       const signingData = {
         templateId: this.templateId,
         documentId: this.documentId,
         signer: this.signerFields,
         documentFields: this.documentFields,
         signatureData: {
-          signatureImage: signatures[0].signatureImage,
-          position: {
-            pageNumber: 1,
-            x: 10,
-            y: 79,
-            width: 200,
-            height: 50,
-          },
+          signatures: signatures,
         },
       };
 
@@ -601,6 +857,7 @@ class ESIGNComponent extends HTMLElement {
           serviceUrl: this.serviceUrl,
           sessionToken,
           signingData,
+          totalSignatures: signatures.length,
         });
         result = await this.mockSigningProcess(sessionToken);
       } else {
@@ -642,6 +899,37 @@ class ESIGNComponent extends HTMLElement {
       });
       this.dispatchEvent(event);
     }
+  }
+
+  /**
+   * Generates a mock base64 signature image for development mode
+   * @param {string} signatureText The text that was signed
+   * @returns {string} Base64 encoded signature image
+   */
+  generateMockSignatureImage(signatureText) {
+    // Create a simple canvas with signature text
+    const canvas = document.createElement("canvas");
+    canvas.width = 200;
+    canvas.height = 50;
+    const ctx = canvas.getContext("2d");
+
+    // Clear canvas
+    ctx.fillStyle = "transparent";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw signature text
+    ctx.fillStyle = "#000";
+    ctx.font = "18px cursive";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+      signatureText || "Signature",
+      canvas.width / 2,
+      canvas.height / 2
+    );
+
+    // Return base64 without the data URL prefix
+    return canvas.toDataURL("image/png").split(",")[1];
   }
 
   /**
@@ -730,13 +1018,15 @@ class ESIGNComponent extends HTMLElement {
       // Clear the container and add controls
       container.innerHTML = `
         <div class="pdf-controls">
-          <button id="prev-page" disabled>← Previous</button>
-          <span class="pdf-page-info">Page <span id="current-page">1</span> of ${
-            pdf.numPages
-          }</span>
-          <button id="next-page" ${
-            pdf.numPages <= 1 ? "disabled" : ""
-          }>Next →</button>
+          <button id="prev-signature" disabled>← Previous Signature</button>
+          <span class="pdf-page-info">Signature <span id="current-signature">1</span> of <span id="total-signatures">${
+            this.signatureBlocks ? this.signatureBlocks.length : 0
+          }</span></span>
+          <button id="next-signature" ${
+            !this.signatureBlocks || this.signatureBlocks.length <= 1
+              ? "disabled"
+              : ""
+          }>Next Signature →</button>
           <button id="zoom-out">−</button>
           <span class="pdf-zoom-info">100%</span>
           <button id="zoom-in">+</button>
@@ -747,78 +1037,120 @@ class ESIGNComponent extends HTMLElement {
       // Get the containers and controls
       const pagesContainer = container.querySelector("#pages-container");
       const pdfContainer = this.shadowRoot.querySelector(".pdf-container");
-      const prevButton = container.querySelector("#prev-page");
-      const nextButton = container.querySelector("#next-page");
+      const prevSignatureButton = container.querySelector("#prev-signature");
+      const nextSignatureButton = container.querySelector("#next-signature");
       const zoomOutButton = container.querySelector("#zoom-out");
       const zoomInButton = container.querySelector("#zoom-in");
-      const currentPageSpan = container.querySelector("#current-page");
+      const currentSignatureSpan =
+        container.querySelector("#current-signature");
+      const totalSignaturesSpan = container.querySelector("#total-signatures");
       const zoomInfo = container.querySelector(".pdf-zoom-info");
 
-      // Scroll to page function
-      const scrollToPage = (pageNum) => {
-        const pageElement = pagesContainer.querySelector(
-          `[data-page="${pageNum}"]`
+      // Initialize signature navigation
+      this.currentSignatureIndex = 0;
+      this.orderedSignatureBlocks = [];
+
+      // Function to create ordered list of signature blocks (by page, then by position)
+      const createOrderedSignatureList = () => {
+        if (!this.signatureBlocks || !Array.isArray(this.signatureBlocks)) {
+          return [];
+        }
+
+        return [...this.signatureBlocks].sort((a, b) => {
+          // First sort by page
+          if (a.page !== b.page) {
+            return a.page - b.page;
+          }
+          // Then sort by Y position (top to bottom)
+          if (a.position.y !== b.position.y) {
+            return a.position.y - b.position.y;
+          }
+          // Finally sort by X position (left to right)
+          return a.position.x - b.position.x;
+        });
+      };
+
+      // Function to navigate to a specific signature block
+      const navigateToSignature = (index) => {
+        if (
+          !this.orderedSignatureBlocks ||
+          this.orderedSignatureBlocks.length === 0
+        ) {
+          return;
+        }
+
+        // Ensure index is within bounds
+        index = Math.max(
+          0,
+          Math.min(index, this.orderedSignatureBlocks.length - 1)
         );
-        if (pageElement) {
-          pdfContainer.scrollTo({
-            top: pageElement.offsetTop - container.offsetTop,
-            behavior: "smooth",
-          });
+        this.currentSignatureIndex = index;
+
+        const signatureBlock = this.orderedSignatureBlocks[index];
+
+        // Find the corresponding DOM element
+        const signatureElement = this.shadowRoot.querySelector(
+          `[data-block-id="${signatureBlock.id}"]`
+        );
+
+        if (signatureElement) {
+          // Auto-scroll to the signature block
+          this.scrollToSignatureBlock(signatureElement);
+
+          // Highlight the signature block
+          this.highlightSignatureBlock(signatureElement);
+        }
+
+        // Update UI
+        currentSignatureSpan.textContent = index + 1;
+        prevSignatureButton.disabled = false; // Always enabled for looping
+        nextSignatureButton.disabled = false; // Always enabled for looping
+
+        console.log(
+          `Navigated to signature ${index + 1} of ${
+            this.orderedSignatureBlocks.length
+          }`
+        );
+      };
+
+      // Update signature navigation when blocks are rendered
+      const updateSignatureNavigation = () => {
+        this.orderedSignatureBlocks = createOrderedSignatureList();
+        totalSignaturesSpan.textContent = this.orderedSignatureBlocks.length;
+
+        if (this.orderedSignatureBlocks.length > 0) {
+          // Start at the first signature
+          this.currentSignatureIndex = 0;
+          currentSignatureSpan.textContent = "1";
+          prevSignatureButton.disabled = false;
+          nextSignatureButton.disabled =
+            this.orderedSignatureBlocks.length <= 1;
+        } else {
+          currentSignatureSpan.textContent = "0";
+          prevSignatureButton.disabled = true;
+          nextSignatureButton.disabled = true;
         }
       };
 
-      // Update page number on scroll
-      const updateCurrentPage = () => {
-        const pages = Array.from(pagesContainer.querySelectorAll(".pdf-page"));
-        const containerRect = pdfContainer.getBoundingClientRect();
-        const containerTop = containerRect.top + pdfContainer.scrollTop;
-
-        // Find the page that is most visible in the viewport
-        const currentPage = pages.reduce(
-          (closest, page) => {
-            const rect = page.getBoundingClientRect();
-            const visibleHeight =
-              Math.min(rect.bottom, containerRect.bottom) -
-              Math.max(rect.top, containerRect.top);
-            return visibleHeight > closest.visibleHeight
-              ? { element: page, visibleHeight }
-              : closest;
-          },
-          { element: pages[0], visibleHeight: 0 }
-        ).element;
-
-        const pageNum = parseInt(currentPage.dataset.page);
-        currentPageSpan.textContent = pageNum;
-        prevButton.disabled = pageNum === 1;
-        nextButton.disabled = pageNum === pdf.numPages;
-      };
-
-      // Listen for scroll events on the PDF container
-      pdfContainer.addEventListener("scroll", updateCurrentPage);
-
-      // Navigation button handlers
-      prevButton.addEventListener("click", () => {
-        const currentPage = parseInt(currentPageSpan.textContent);
-        if (currentPage > 1) {
-          scrollToPage(currentPage - 1);
-          updateCurrentPage();
-        }
+      // Navigation button handlers with looping
+      prevSignatureButton.addEventListener("click", () => {
+        console.log("Previous signature button clicked");
+        this.navigateToPreviousSignature();
       });
 
-      nextButton.addEventListener("click", () => {
-        const currentPage = parseInt(currentPageSpan.textContent);
-        if (currentPage < pdf.numPages) {
-          scrollToPage(currentPage + 1);
-          updateCurrentPage();
-        }
+      nextSignatureButton.addEventListener("click", () => {
+        console.log("Next signature button clicked");
+        this.navigateToNextSignature();
       });
 
-      // Add keyboard navigation
+      // Add keyboard navigation for signatures
       pdfContainer.addEventListener("keydown", (e) => {
         if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-          nextButton.click();
+          this.navigateToNextSignature();
+          e.preventDefault();
         } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-          prevButton.click();
+          this.navigateToPreviousSignature();
+          e.preventDefault();
         }
       });
 
@@ -941,6 +1273,9 @@ class ESIGNComponent extends HTMLElement {
 
       // Initial render
       await this.renderAllPages(pdf, pagesContainer);
+
+      // Store the navigation update function for later use
+      this.updateSignatureNavigation = updateSignatureNavigation;
     } catch (error) {
       console.error("Error loading PDF preview:", error);
       const container = this.shadowRoot.querySelector("#pdf-viewer-container");
@@ -1020,275 +1355,468 @@ class ESIGNComponent extends HTMLElement {
         viewport: scaledViewport,
       }).promise;
 
-      // Add signature blocks if in dev mode or if they exist in session data
-      if (this.devMode) {
-        // Mock signature block for dev mode
-        if (pageNum === 1) {
-          // Only on first page
-          const signatureBlock = document.createElement("div");
-          signatureBlock.className = "signature-block required";
-          signatureBlock.textContent = "Click to sign";
-          signatureBlock.style.left = "10%"; // From left
-          signatureBlock.style.top = "79%"; // From top
-          signatureBlock.style.width = "200px";
-          signatureBlock.style.textAlign = "center";
-          // Store the page number directly on the element
-          signatureBlock.dataset.pageNumber = pageNum;
-          pageContainer.appendChild(signatureBlock);
-
-          // Add to tracking set
-          this.signatureBlocks.add(signatureBlock);
-
-          signatureBlock.addEventListener("click", () => {
-            console.log("Signature block clicked");
-
-            // Create overlay and dialog
-            const overlay = document.createElement("div");
-            overlay.className = "signature-overlay";
-
-            const dialog = document.createElement("div");
-            dialog.className = "signature-input-dialog";
-            dialog.innerHTML = `
-              <h3>Enter your signature</h3>
-              <div class="consent-statement" style="margin-bottom: 15px; font-size: 12px; line-height: 1.4; max-width: 400px; color: #555;">
-                By checking this box and clicking "Sign Document", you (i) consent to conduct business electronically and to receive all related disclosures, agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, and (iii) agree that your electronic signature is legally binding and that you intend to electronically sign this document. You may withdraw your consent or request a paper copy by contacting us at support@joinworth.com or visiting www.joinworth.com.
-              </div>
-              <div style="margin-bottom: 10px;">
-                <label style="display: flex; align-items: center; cursor: pointer;">
-                  <input type="checkbox" id="consent-checkbox" style="margin-right: 8px;" required>
-                  <span style="font-size: 14px;">I agree to the terms above</span>
-                </label>
-              </div>
-              <input type="text" placeholder="Type your name" style="margin: 10px 0; padding: 5px; width: 100%;">
-              <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
-                <button class="esign-button cancel-button" style="background: #6c757d;">Cancel</button>
-                <button class="esign-button" id="sign-button" disabled>Sign Document</button>
-              </div>
-            `;
-
-            // Add to DOM
-            this.shadowRoot.appendChild(overlay);
-            this.shadowRoot.appendChild(dialog);
-
-            // Focus input
-            const input = dialog.querySelector("input[type='text']");
-            input.focus();
-
-            // Handle consent checkbox
-            const consentCheckbox = dialog.querySelector("#consent-checkbox");
-            const signButton = dialog.querySelector("#sign-button");
-
-            consentCheckbox.addEventListener("change", () => {
-              signButton.disabled = !consentCheckbox.checked;
-            });
-
-            // Handle cancel
-            const cancelBtn = dialog.querySelector(".cancel-button");
-            cancelBtn.addEventListener("click", () => {
-              overlay.remove();
-              dialog.remove();
-            });
-
-            // Handle sign
-            const handleSign = () => {
-              const signedText = input.value.trim();
-              if (signedText) {
-                // Check if consent checkbox is checked
-                if (!consentCheckbox.checked) {
-                  alert("Please check the consent box before signing");
-                  return;
-                }
-
-                // Preserve the original position and size
-                const originalLeft = signatureBlock.style.left;
-                const originalTop = signatureBlock.style.top;
-                const originalWidth = signatureBlock.style.width;
-
-                // Replace signature block with signed text
-                signatureBlock.className = "signed-text";
-                signatureBlock.textContent = signedText;
-                signatureBlock.style.cursor = "default";
-
-                // Restore position and size
-                signatureBlock.style.left = originalLeft;
-                signatureBlock.style.top = originalTop;
-                signatureBlock.style.width = originalWidth;
-
-                // Remove click handler
-                signatureBlock.replaceWith(signatureBlock.cloneNode(true));
-
-                // Clean up dialog
-                overlay.remove();
-                dialog.remove();
-
-                // Add to completed signatures
-                this.completedSignatures.add(signatureBlock);
-
-                // Check if all required signatures are complete
-                if (this.areAllSignaturesComplete()) {
-                  this.startSigning(this.getAttribute("session-token"));
-                }
-
-                // Update signature status
-                this.updateSignatureStatus();
-              }
-            };
-
-            signButton.addEventListener("click", handleSign);
-            input.addEventListener("keypress", (e) => {
-              if (e.key === "Enter" && !signButton.disabled) handleSign();
-            });
-          });
-        }
-      } else if (this.sessionDetails?.signatureBlocks) {
-        // Handle real signature blocks from session data
-        const blocksForThisPage = this.sessionDetails.signatureBlocks.filter(
+      // Add signature blocks for this page from the signatureBlocks array
+      if (this.signatureBlocks && Array.isArray(this.signatureBlocks)) {
+        const blocksForThisPage = this.signatureBlocks.filter(
           (block) => block.page === pageNum
         );
 
-        blocksForThisPage.forEach((block) => {
+        blocksForThisPage.forEach((blockConfig) => {
           const signatureBlock = document.createElement("div");
-          signatureBlock.className = `signature-block${
-            block.required ? " required" : ""
-          }`;
-          signatureBlock.textContent = block.label || "Click to sign";
-          // signatureBlock.style.left = `${block.position.x}%`;
-          // signatureBlock.style.top = `${block.position.y}%`;
-          signatureBlock.style.left = "10%"; // From left
-          signatureBlock.style.top = "79%"; // From top
-          signatureBlock.style.width = "200px";
-          // signatureBlock.style.alignSelf = "right"
+
+          // Set CSS classes based on block configuration
+          const classes = ["signature-block"];
+          if (blockConfig.required) classes.push("required");
+          if (blockConfig.type === "initial") classes.push("initial");
+          if (blockConfig.completed) classes.push("completed");
+
+          signatureBlock.className = classes.join(" ");
+
+          // Set content based on type and completion status
+          if (blockConfig.completed) {
+            signatureBlock.textContent =
+              blockConfig.signatureText || "✓ Signed";
+            signatureBlock.style.cursor = "default";
+          } else {
+            const label =
+              blockConfig.type === "initial"
+                ? "Click to initial"
+                : "Click to sign";
+            signatureBlock.textContent = label;
+            signatureBlock.style.cursor = "pointer";
+          }
+
+          // Position and size the block
+          signatureBlock.style.left = `${blockConfig.position.x}%`;
+          signatureBlock.style.top = `${blockConfig.position.y}%`;
+          signatureBlock.style.width = `${blockConfig.dimensions.width}px`;
+          signatureBlock.style.height = `${blockConfig.dimensions.height}px`;
           signatureBlock.style.textAlign = "center";
+
+          // Store reference to the configuration
+          signatureBlock.dataset.blockId = blockConfig.id;
+          signatureBlock.dataset.pageNumber = pageNum;
+
           pageContainer.appendChild(signatureBlock);
 
-          // Add to tracking set
-          this.signatureBlocks.add(signatureBlock);
+          // Add click handler only if not completed
+          if (!blockConfig.completed) {
+            signatureBlock.addEventListener("click", () => {
+              // Auto-scroll to the clicked signature block
+              this.scrollToSignatureBlock(signatureBlock);
 
-          signatureBlock.addEventListener("click", () => {
-            console.log("Signature block clicked");
+              // Highlight the clicked block
+              this.highlightSignatureBlock(signatureBlock);
 
-            // Create overlay and dialog
-            const overlay = document.createElement("div");
-            overlay.className = "signature-overlay";
+              // Check if we've already captured this signature type
+              const typeStatus = this.signatureTypeStatus.get(blockConfig.type);
+              const capturedSignature = this.capturedSignaturesByType.get(
+                blockConfig.type
+              );
 
-            const dialog = document.createElement("div");
-            dialog.className = "signature-input-dialog";
-            dialog.innerHTML = `
-              <h3>Enter your signature</h3>
-              <div class="consent-statement" style="margin-bottom: 15px; font-size: 12px; line-height: 1.4; max-width: 400px; color: #555;">
-                By checking this box and clicking "Sign Document", you (i) consent to conduct business electronically and to receive all related disclosures, agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, and (iii) agree that your electronic signature is legally binding and that you intend to electronically sign this document. You may withdraw your consent or request a paper copy by contacting us at support@joinworth.com or visiting www.joinworth.com.
-              </div>
-              <div style="margin-bottom: 10px;">
-                <label style="display: flex; align-items: center; cursor: pointer;">
-                  <input type="checkbox" id="consent-checkbox" style="margin-right: 8px;" required>
-                  <span style="font-size: 14px;">I agree to the terms above</span>
-                </label>
-              </div>
-              <input type="text" placeholder="Type your name" style="margin: 10px 0; padding: 5px; width: 100%;">
-              <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
-                <button class="esign-button cancel-button" style="background: #6c757d;">Cancel</button>
-                <button class="esign-button" id="sign-button" disabled>Sign Document</button>
-              </div>
-            `;
-
-            // Add to DOM
-            this.shadowRoot.appendChild(overlay);
-            this.shadowRoot.appendChild(dialog);
-
-            // Focus input
-            const input = dialog.querySelector("input[type='text']");
-            input.focus();
-
-            // Handle consent checkbox
-            const consentCheckbox = dialog.querySelector("#consent-checkbox");
-            const signButton = dialog.querySelector("#sign-button");
-
-            consentCheckbox.addEventListener("change", () => {
-              signButton.disabled = !consentCheckbox.checked;
-            });
-
-            // Handle cancel
-            const cancelBtn = dialog.querySelector(".cancel-button");
-            cancelBtn.addEventListener("click", () => {
-              overlay.remove();
-              dialog.remove();
-            });
-
-            // Handle sign
-            const handleSign = () => {
-              const signedText = input.value.trim();
-              if (signedText) {
-                // Check if consent checkbox is checked
-                if (!consentCheckbox.checked) {
-                  alert("Please check the consent box before signing");
-                  return;
-                }
-
-                // Preserve the original position and size
-                const originalLeft = signatureBlock.style.left;
-                const originalTop = signatureBlock.style.top;
-                const originalWidth = signatureBlock.style.width;
-
-                // Replace signature block with signed text
-                signatureBlock.className = "signed-text";
-                signatureBlock.textContent = signedText;
-                signatureBlock.style.cursor = "default";
-
-                // Restore position and size
-                signatureBlock.style.left = originalLeft;
-                signatureBlock.style.top = originalTop;
-                signatureBlock.style.width = originalWidth;
-
-                // Remove click handler
-                signatureBlock.replaceWith(signatureBlock.cloneNode(true));
-
-                // Clean up dialog
-                overlay.remove();
-                dialog.remove();
-
-                // Add to completed signatures
-                this.completedSignatures.add(signatureBlock);
-
-                // Check if all required signatures are complete
-                if (this.areAllSignaturesComplete()) {
-                  this.startSigning(this.getAttribute("session-token"));
-                }
-
-                // Update signature status
-                this.updateSignatureStatus();
+              if (typeStatus && typeStatus.captured && capturedSignature) {
+                // Auto-apply existing signature for this type
+                this.autoApplySignature(
+                  blockConfig,
+                  signatureBlock,
+                  capturedSignature
+                );
+              } else {
+                // Show modal for first signature of this type
+                this.showSignatureModal(blockConfig, signatureBlock);
               }
-            };
-
-            signButton.addEventListener("click", handleSign);
-            input.addEventListener("keypress", (e) => {
-              if (e.key === "Enter" && !signButton.disabled) handleSign();
             });
-          });
+          }
         });
       }
     }
+
+    // Update signature status after rendering all pages
+    this.updateSignatureStatus();
+
+    // Update signature navigation after all blocks are rendered
+    this.updateSignatureNavigation();
+
+    // Auto-scroll to the first signature block after rendering is complete
+    if (this.signatureBlocks && this.signatureBlocks.length > 0) {
+      // Use a small delay to ensure DOM elements are properly positioned
+      setTimeout(() => {
+        // Use the new navigation system to go to the first signature
+        if (
+          this.orderedSignatureBlocks &&
+          this.orderedSignatureBlocks.length > 0
+        ) {
+          const firstSignatureBlock = this.orderedSignatureBlocks[0];
+          const firstSignatureElement = this.shadowRoot.querySelector(
+            `[data-block-id="${firstSignatureBlock.id}"]`
+          );
+
+          if (firstSignatureElement) {
+            console.log(
+              "Auto-scrolling to first signature block using navigation system"
+            );
+            this.scrollToSignatureBlock(firstSignatureElement);
+            this.highlightSignatureBlock(firstSignatureElement);
+
+            // Update the navigation counter
+            this.currentSignatureIndex = 0;
+            const currentSignatureSpan =
+              this.shadowRoot.querySelector("#current-signature");
+            if (currentSignatureSpan) {
+              currentSignatureSpan.textContent = "1";
+            }
+          }
+        } else {
+          // Fallback to the old method if navigation system isn't ready
+          const firstSignatureElement = this.shadowRoot.querySelector(
+            ".signature-block:not(.completed)"
+          );
+
+          if (firstSignatureElement) {
+            console.log(
+              "Auto-scrolling to first signature block (fallback method)"
+            );
+            this.scrollToSignatureBlock(firstSignatureElement);
+            this.highlightSignatureBlock(firstSignatureElement);
+          }
+        }
+      }, 300); // Small delay to ensure smooth rendering
+    }
+  }
+
+  /**
+   * Shows the signature modal for capturing user signature/initial
+   * @param {Object} blockConfig Configuration object for the signature block
+   * @param {HTMLElement} signatureElement DOM element for the signature block
+   */
+  showSignatureModal(blockConfig, signatureElement) {
+    console.log("Signature block clicked:", blockConfig);
+
+    // Mark that we've shown the modal for this type
+    const typeStatus = this.signatureTypeStatus.get(blockConfig.type);
+    if (typeStatus) {
+      typeStatus.modalShown = true;
+    }
+
+    // Create modal
+    const modal = document.createElement("div");
+    modal.className = "signature-modal";
+
+    const modalContent = document.createElement("div");
+    modalContent.className = "signature-modal-content";
+
+    const title =
+      blockConfig.type === "initial"
+        ? "Enter your initials"
+        : "Enter your signature";
+
+    // Count how many blocks of this type exist
+    const blocksOfSameType = this.signatureBlocks.filter(
+      (block) => block.type === blockConfig.type
+    );
+    const showApplyToAllOption = blocksOfSameType.length > 1;
+
+    modalContent.innerHTML = `
+      <h3>${title}</h3>
+      <div class="consent-statement" style="margin-bottom: 15px; font-size: 12px; line-height: 1.4; max-width: 400px; color: #555;">
+        By checking this box and clicking "${title
+          .replace("Enter your ", "")
+          .replace(
+            "e",
+            "E"
+          )}", you (i) consent to conduct business electronically and to receive all related disclosures, agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, and (iii) agree that your electronic signature is legally binding and that you intend to electronically sign this document. You may withdraw your consent or request a paper copy by contacting us at support@joinworth.com or visiting www.joinworth.com.
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label style="display: flex; align-items: center; cursor: pointer;">
+          <input type="checkbox" id="consent-checkbox" style="margin-right: 8px;" required>
+          <span style="font-size: 14px;">I agree to the terms above</span>
+        </label>
+      </div>
+      <input type="text" placeholder="Type your ${
+        blockConfig.type === "initial" ? "initials" : "name"
+      }" style="margin: 10px 0; padding: 5px; width: 100%;">
+      ${
+        showApplyToAllOption
+          ? `
+      <div style="margin: 10px 0;">
+        <label style="display: flex; align-items: center; cursor: pointer;">
+          <input type="checkbox" id="apply-to-all-checkbox" style="margin-right: 8px;">
+          <span style="font-size: 14px;">Apply this ${blockConfig.type} to all ${blockConfig.type} blocks (${blocksOfSameType.length} total)</span>
+        </label>
+      </div>
+      `
+          : ""
+      }
+      <div class="signature-modal-buttons">
+        <button class="modal-button cancel-button">Cancel</button>
+        <button class="modal-button primary" id="sign-button" disabled>${
+          blockConfig.type === "initial" ? "Initial" : "Sign"
+        }</button>
+      </div>
+    `;
+
+    modal.appendChild(modalContent);
+    this.shadowRoot.appendChild(modal);
+
+    // Get references to form elements
+    const input = modalContent.querySelector("input[type='text']");
+    const consentCheckbox = modalContent.querySelector("#consent-checkbox");
+    const applyToAllCheckbox = modalContent.querySelector(
+      "#apply-to-all-checkbox"
+    );
+    const signButton = modalContent.querySelector("#sign-button");
+    const cancelButton = modalContent.querySelector(".cancel-button");
+
+    // Focus input
+    input.focus();
+
+    // Handle consent checkbox
+    const updateSignButtonState = () => {
+      signButton.disabled = !consentCheckbox.checked || !input.value.trim();
+    };
+
+    consentCheckbox.addEventListener("change", updateSignButtonState);
+    input.addEventListener("input", updateSignButtonState);
+
+    // Handle cancel
+    cancelButton.addEventListener("click", () => {
+      modal.remove();
+    });
+
+    // Handle sign
+    const handleSign = () => {
+      const signatureText = input.value.trim();
+      if (signatureText && consentCheckbox.checked) {
+        // Save the captured signature for this type
+        const capturedSignature = {
+          text: signatureText,
+          timestamp: new Date().toISOString(),
+          type: blockConfig.type,
+        };
+
+        this.capturedSignaturesByType.set(blockConfig.type, capturedSignature);
+
+        // Update type status
+        const typeStatus = this.signatureTypeStatus.get(blockConfig.type);
+        if (typeStatus) {
+          typeStatus.captured = true;
+        }
+
+        // Apply to current block
+        this.applySignatureToBlock(
+          blockConfig,
+          signatureElement,
+          capturedSignature
+        );
+
+        // If apply to all is checked, apply to all blocks of this type
+        if (applyToAllCheckbox && applyToAllCheckbox.checked) {
+          this.applySignatureToAllBlocksOfType(
+            blockConfig.type,
+            capturedSignature
+          );
+        }
+
+        // Close modal
+        modal.remove();
+
+        console.log(
+          "Signature captured for type:",
+          blockConfig.type,
+          capturedSignature
+        );
+      }
+    };
+
+    signButton.addEventListener("click", handleSign);
+    input.addEventListener("keypress", (e) => {
+      if (e.key === "Enter" && !signButton.disabled) {
+        handleSign();
+      }
+    });
+  }
+
+  /**
+   * Applies a signature to a specific block
+   * @param {Object} blockConfig Configuration object for the signature block
+   * @param {HTMLElement} signatureElement DOM element for the signature block
+   * @param {Object} capturedSignature The captured signature data
+   */
+  applySignatureToBlock(blockConfig, signatureElement, capturedSignature) {
+    // Update block configuration
+    blockConfig.completed = true;
+    blockConfig.signatureText = capturedSignature.text;
+    blockConfig.timestamp = capturedSignature.timestamp;
+
+    // Update DOM element
+    signatureElement.textContent = capturedSignature.text;
+    signatureElement.className =
+      signatureElement.className.replace("required", "") + " completed";
+    signatureElement.style.cursor = "default";
+
+    // Remove click handler
+    const newElement = signatureElement.cloneNode(true);
+    signatureElement.parentNode.replaceChild(newElement, signatureElement);
 
     // Update signature status
     this.updateSignatureStatus();
   }
 
+  /**
+   * Applies a signature to all blocks of the specified type
+   * @param {string} signatureType The type of signature blocks to update
+   * @param {Object} capturedSignature The captured signature data
+   */
+  applySignatureToAllBlocksOfType(signatureType, capturedSignature) {
+    const blocksOfType = this.signatureBlocks.filter(
+      (block) => block.type === signatureType && !block.completed
+    );
+
+    console.log(
+      `Applying ${signatureType} to ${blocksOfType.length} remaining blocks`
+    );
+
+    // Find and update DOM elements for all blocks of this type
+    const allSignatureElements =
+      this.shadowRoot.querySelectorAll(".signature-block");
+
+    blocksOfType.forEach((blockConfig) => {
+      // Find the corresponding DOM element
+      const signatureElement = Array.from(allSignatureElements).find(
+        (element) => element.dataset.blockId === blockConfig.id
+      );
+
+      if (signatureElement && !blockConfig.completed) {
+        this.applySignatureToBlock(
+          blockConfig,
+          signatureElement,
+          capturedSignature
+        );
+      }
+    });
+
+    // Show notification
+    if (blocksOfType.length > 0) {
+      this.showAutoApplyNotification(
+        signatureType,
+        `Applied to ${blocksOfType.length + 1} ${signatureType} blocks`
+      );
+    }
+  }
+
+  /**
+   * Auto-applies a previously captured signature to a signature block
+   * @param {Object} blockConfig Configuration object for the signature block
+   * @param {HTMLElement} signatureElement DOM element for the signature block
+   * @param {Object} capturedSignature Previously captured signature data
+   */
+  autoApplySignature(blockConfig, signatureElement, capturedSignature) {
+    console.log(
+      `Auto-applying ${blockConfig.type} signature:`,
+      capturedSignature
+    );
+
+    // Update block configuration
+    blockConfig.completed = true;
+    blockConfig.signatureText = capturedSignature.text;
+    blockConfig.timestamp = new Date().toISOString();
+    blockConfig.autoApplied = true;
+
+    // Update DOM element
+    signatureElement.textContent = capturedSignature.text;
+    signatureElement.className =
+      signatureElement.className.replace("required", "") + " completed";
+    signatureElement.style.cursor = "default";
+
+    // Remove click handler
+    const newElement = signatureElement.cloneNode(true);
+    signatureElement.parentNode.replaceChild(newElement, signatureElement);
+
+    // Add visual indicator for auto-applied signature
+    newElement.title = `Auto-applied ${blockConfig.type}: ${capturedSignature.text}`;
+
+    // Update signature status
+    this.updateSignatureStatus();
+
+    // Show brief notification
+    this.showAutoApplyNotification(blockConfig.type, capturedSignature.text);
+  }
+
+  /**
+   * Shows a brief notification when a signature is auto-applied
+   * @param {string} type The signature type (signature/initial)
+   * @param {string} text The signature text
+   */
+  showAutoApplyNotification(type, text) {
+    const notification = document.createElement("div");
+    notification.className = "auto-apply-notification";
+    notification.innerHTML = `
+      <div style="
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #28a745;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        z-index: 1001;
+        font-size: 14px;
+        animation: slideIn 0.3s ease-out;
+      ">
+        ✓ ${type === "initial" ? "Initial" : "Signature"} auto-applied: ${text}
+      </div>
+      <style>
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      </style>
+    `;
+
+    this.shadowRoot.appendChild(notification);
+
+    // Remove notification after 2 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.remove();
+      }
+    }, 2000);
+  }
+
   // Add helper method to check if all required signatures are complete
   areAllSignaturesComplete() {
-    // In dev mode, just check if any signature is complete (since we only have one)
-    if (this.devMode) {
-      return this.completedSignatures.size > 0;
+    // Return false if no signature blocks are defined
+    if (!this.signatureBlocks || this.signatureBlocks.length === 0) {
+      return false;
     }
 
-    // In production, check that all required signature blocks are signed
+    // For arrays (new structure), check completion status
+    if (Array.isArray(this.signatureBlocks)) {
+      const requiredSignatures = this.signatureBlocks.filter(
+        (block) => block.required
+      );
+      const completedRequired = requiredSignatures.filter(
+        (block) => block.completed
+      );
+      return (
+        requiredSignatures.length > 0 &&
+        completedRequired.length === requiredSignatures.length
+      );
+    }
+
+    // For Sets (legacy structure), check DOM elements
     for (const block of this.signatureBlocks) {
       if (
+        block.classList &&
         block.classList.contains("required") &&
         !this.completedSignatures.has(block)
       ) {
         return false;
       }
     }
-    return true;
+
+    return this.completedSignatures.size > 0;
   }
 
   // Add disconnectedCallback to clean up event listeners
@@ -1300,25 +1828,295 @@ class ESIGNComponent extends HTMLElement {
 
   // Add method to update signature status
   updateSignatureStatus() {
-    const statusElement = this.shadowRoot.querySelector(".signature-status");
-    const completeCount = this.shadowRoot.querySelector("#signatures-complete");
-    const requiredCount = this.shadowRoot.querySelector("#signatures-required");
+    const progressContainer = this.shadowRoot.querySelector(
+      "#signature-progress"
+    );
+    const progressText = this.shadowRoot.querySelector("#progress-text");
+    const progressFill = this.shadowRoot.querySelector("#progress-fill");
+    const completeButton = this.shadowRoot.querySelector("#start-signing");
 
-    const required = this.devMode
-      ? 1
-      : Array.from(this.signatureBlocks).filter((block) =>
-          block.classList.contains("required")
-        ).length;
-
-    const completed = this.completedSignatures.size;
-
-    completeCount.textContent = completed;
-    requiredCount.textContent = required;
-
-    if (completed === required) {
-      statusElement.style.background = "#d4edda";
-      statusElement.style.color = "#155724";
+    // Return early if elements don't exist yet
+    if (!progressContainer || !progressText || !progressFill) {
+      return;
     }
+
+    // Calculate progress based on signatureBlocks array
+    const totalSignatures = this.signatureBlocks
+      ? this.signatureBlocks.length
+      : 0;
+    const completedSignatures = this.signatureBlocks
+      ? this.signatureBlocks.filter((block) => block.completed).length
+      : 0;
+
+    // Update progress text and bar
+    progressText.textContent = `${completedSignatures}/${totalSignatures}`;
+    const progressPercentage =
+      totalSignatures > 0 ? (completedSignatures / totalSignatures) * 100 : 0;
+    progressFill.style.width = `${progressPercentage}%`;
+
+    // Show/hide progress container based on whether we have signature blocks
+    if (totalSignatures > 0) {
+      progressContainer.style.display = "block";
+    } else {
+      progressContainer.style.display = "none";
+    }
+
+    // Update complete button visibility and enable/disable state
+    if (completeButton) {
+      if (totalSignatures > 0) {
+        completeButton.style.display = "inline-block";
+
+        // Check if all required signatures are complete
+        const allComplete = this.areAllSignaturesComplete();
+        completeButton.disabled = !allComplete;
+
+        if (allComplete) {
+          completeButton.textContent = "Complete Signing";
+          progressContainer.style.background = "#d4edda";
+          progressContainer.style.color = "#155724";
+        } else {
+          completeButton.textContent = `Sign Document (${completedSignatures}/${totalSignatures})`;
+          progressContainer.style.background = "#f8f9fa";
+          progressContainer.style.color = "inherit";
+        }
+      } else {
+        completeButton.style.display = "none";
+      }
+    }
+  }
+
+  /**
+   * Scrolls smoothly to a signature block element in the PDF container
+   * @param {HTMLElement} signatureElement The signature block to scroll to
+   */
+  scrollToSignatureBlock(signatureElement) {
+    const pdfContainer = this.shadowRoot.querySelector(".pdf-container");
+    if (!pdfContainer || !signatureElement) return;
+
+    // Get the position of the signature block relative to the PDF container
+    const containerRect = pdfContainer.getBoundingClientRect();
+    const elementRect = signatureElement.getBoundingClientRect();
+
+    // Calculate the target scroll position
+    const targetScrollTop =
+      pdfContainer.scrollTop +
+      (elementRect.top - containerRect.top) -
+      pdfContainer.clientHeight / 2 +
+      elementRect.height / 2;
+    const targetScrollLeft =
+      pdfContainer.scrollLeft +
+      (elementRect.left - containerRect.left) -
+      pdfContainer.clientWidth / 2 +
+      elementRect.width / 2;
+
+    // Smooth scroll animation
+    const startScrollTop = pdfContainer.scrollTop;
+    const startScrollLeft = pdfContainer.scrollLeft;
+    const scrollTopDistance = targetScrollTop - startScrollTop;
+    const scrollLeftDistance = targetScrollLeft - startScrollLeft;
+    const duration = 500; // 500ms animation
+    const startTime = performance.now();
+
+    const animateScroll = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Easing function for smooth animation
+      const easeInOutCubic =
+        progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+      pdfContainer.scrollTop =
+        startScrollTop + scrollTopDistance * easeInOutCubic;
+      pdfContainer.scrollLeft =
+        startScrollLeft + scrollLeftDistance * easeInOutCubic;
+
+      if (progress < 1) {
+        requestAnimationFrame(animateScroll);
+      }
+    };
+
+    requestAnimationFrame(animateScroll);
+  }
+
+  /**
+   * Highlights a signature block temporarily to draw attention
+   * @param {HTMLElement} signatureElement The signature block to highlight
+   */
+  highlightSignatureBlock(signatureElement) {
+    if (!signatureElement) return;
+
+    // Add highlight class
+    signatureElement.classList.add("highlighted");
+
+    // Add temporary highlight styles
+    const originalBorderColor = signatureElement.style.borderColor;
+    const originalBoxShadow = signatureElement.style.boxShadow;
+
+    signatureElement.style.borderColor = "#ffc107";
+    signatureElement.style.boxShadow = "0 0 10px rgba(255, 193, 7, 0.5)";
+
+    // Remove highlight after animation
+    setTimeout(() => {
+      signatureElement.style.borderColor = originalBorderColor;
+      signatureElement.style.boxShadow = originalBoxShadow;
+      signatureElement.classList.remove("highlighted");
+    }, 1000);
+  }
+
+  /**
+   * Creates an ordered list of signature blocks sorted by page, then position
+   * @returns {Array} Ordered array of signature blocks
+   */
+  createOrderedSignatureList() {
+    if (!this.signatureBlocks || !Array.isArray(this.signatureBlocks)) {
+      return [];
+    }
+
+    return [...this.signatureBlocks].sort((a, b) => {
+      // First sort by page
+      if (a.page !== b.page) {
+        return a.page - b.page;
+      }
+      // Then sort by Y position (top to bottom)
+      if (a.position.y !== b.position.y) {
+        return a.position.y - b.position.y;
+      }
+      // Finally sort by X position (left to right)
+      return a.position.x - b.position.x;
+    });
+  }
+
+  /**
+   * Navigates to a specific signature block by index
+   * @param {number} index The index of the signature block to navigate to
+   */
+  navigateToSignature(index) {
+    if (
+      !this.orderedSignatureBlocks ||
+      this.orderedSignatureBlocks.length === 0
+    ) {
+      console.log("No signature blocks available for navigation");
+      return;
+    }
+
+    // Ensure index is within bounds
+    index = Math.max(
+      0,
+      Math.min(index, this.orderedSignatureBlocks.length - 1)
+    );
+    this.currentSignatureIndex = index;
+
+    const signatureBlock = this.orderedSignatureBlocks[index];
+
+    // Find the corresponding DOM element
+    const signatureElement = this.shadowRoot.querySelector(
+      `[data-block-id="${signatureBlock.id}"]`
+    );
+
+    if (signatureElement) {
+      // Auto-scroll to the signature block
+      this.scrollToSignatureBlock(signatureElement);
+
+      // Highlight the signature block
+      this.highlightSignatureBlock(signatureElement);
+    } else {
+      console.log(
+        `Could not find signature element for block ID: ${signatureBlock.id}`
+      );
+    }
+
+    // Update UI
+    const currentSignatureSpan =
+      this.shadowRoot.querySelector("#current-signature");
+    if (currentSignatureSpan) {
+      currentSignatureSpan.textContent = index + 1;
+    }
+
+    console.log(
+      `Navigated to signature ${index + 1} of ${
+        this.orderedSignatureBlocks.length
+      }`,
+      signatureBlock
+    );
+  }
+
+  /**
+   * Updates the signature navigation system after blocks are rendered
+   */
+  updateSignatureNavigation() {
+    this.orderedSignatureBlocks = this.createOrderedSignatureList();
+
+    const totalSignaturesSpan =
+      this.shadowRoot.querySelector("#total-signatures");
+    const currentSignatureSpan =
+      this.shadowRoot.querySelector("#current-signature");
+    const prevSignatureButton =
+      this.shadowRoot.querySelector("#prev-signature");
+    const nextSignatureButton =
+      this.shadowRoot.querySelector("#next-signature");
+
+    if (totalSignaturesSpan) {
+      totalSignaturesSpan.textContent = this.orderedSignatureBlocks.length;
+    }
+
+    if (this.orderedSignatureBlocks.length > 0) {
+      // Start at the first signature
+      this.currentSignatureIndex = 0;
+      if (currentSignatureSpan) {
+        currentSignatureSpan.textContent = "1";
+      }
+      if (prevSignatureButton) {
+        prevSignatureButton.disabled = this.orderedSignatureBlocks.length <= 1;
+      }
+      if (nextSignatureButton) {
+        nextSignatureButton.disabled = this.orderedSignatureBlocks.length <= 1;
+      }
+    } else {
+      if (currentSignatureSpan) {
+        currentSignatureSpan.textContent = "0";
+      }
+      if (prevSignatureButton) {
+        prevSignatureButton.disabled = true;
+      }
+      if (nextSignatureButton) {
+        nextSignatureButton.disabled = true;
+      }
+    }
+
+    console.log("Signature navigation updated:", {
+      total: this.orderedSignatureBlocks.length,
+      orderedBlocks: this.orderedSignatureBlocks,
+    });
+  }
+
+  /**
+   * Navigates to the previous signature with looping
+   */
+  navigateToPreviousSignature() {
+    if (this.orderedSignatureBlocks.length === 0) return;
+
+    let newIndex = this.currentSignatureIndex - 1;
+    // Loop to last signature if at first
+    if (newIndex < 0) {
+      newIndex = this.orderedSignatureBlocks.length - 1;
+    }
+    this.navigateToSignature(newIndex);
+  }
+
+  /**
+   * Navigates to the next signature with looping
+   */
+  navigateToNextSignature() {
+    if (this.orderedSignatureBlocks.length === 0) return;
+
+    let newIndex = this.currentSignatureIndex + 1;
+    // Loop to first signature if at last
+    if (newIndex >= this.orderedSignatureBlocks.length) {
+      newIndex = 0;
+    }
+    this.navigateToSignature(newIndex);
   }
 }
 
