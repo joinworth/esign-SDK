@@ -4,38 +4,45 @@
 
 ### Overview
 
-The ESIGN SDK is a JavaScript web component library that provides electronic signature capabilities for web applications. It offers a custom `<esign-component>` element that handles PDF document viewing, signature placement, and integration with backend ESIGN APIs.
+The ESIGN SDK is a JavaScript web component library that provides electronic signature capabilities for web applications. It offers a custom `<esign-component>` element that handles PDF document viewing, signature placement, and integration with backend ESIGN APIs with **full multi-signature support**.
 
 ### Current State of Progress
 
 - ✅ **Core Web Component**: Fully implemented ESIGNComponent class with shadow DOM encapsulation
 - ✅ **PDF Rendering**: Complete PDF.js integration with multi-page support, zoom controls, and navigation
-- ✅ **Signature Workflow**: Interactive signature blocks with click-to-sign functionality
+- ✅ **Multi-Signature Workflow**: Advanced signature management with type-based handling (signature/initial)
+- ✅ **Template Configuration API**: Dynamic signature placement via `/api/v1/templates/{templateId}/config`
+- ✅ **Smart Modal Flow**: Show signature modal once per type, auto-apply for subsequent blocks
+- ✅ **Auto-scroll & Visual Feedback**: Smooth navigation and highlight animations
 - ✅ **Session Token System**: JWT-based authentication and authorization
-- ✅ **Development Mode**: Mock API responses for testing and development
+- ✅ **Development Mode**: Comprehensive mock API responses for testing and development
 - ✅ **Event System**: Custom events for signing-complete and signing-error
 - ✅ **Example Implementation**: Working demo page with multiple use cases
 - ✅ **CDN Distribution**: Ready for jsdelivr CDN deployment
 
 ### Development Status
 
-**Phase**: Production Ready (v1.0.0)
+**Phase**: Production Ready (v1.2.0)
 
-- Core functionality is complete and tested
-- Developer documentation is comprehensive
-- Example implementation demonstrates all features
-- Ready for integration into client applications
+- **Multi-signature functionality is complete and tested**
+- Template-driven signature placement working
+- Smart modal flow provides excellent UX
+- Auto-scroll and visual feedback enhance usability
+- Backward compatibility maintained
+- Ready for production integration
 
 ## 2. Key Files & Architecture
 
 ### Core Files
 
-- **`esign-sdk.js`** (1,327 lines) - Main web component implementation
+- **`esign-sdk.js`** (1,547 lines) - Main web component implementation
 
   - ESIGNComponent class extending HTMLElement
   - PDF rendering and interaction logic
-  - Session token handling and validation
-  - Signature block management and completion tracking
+  - **Template configuration API integration**
+  - **Multi-signature block management and completion tracking**
+  - **Smart modal flow and auto-scroll system**
+  - **Signature type management (signature/initial)**
   - API integration (real and mock modes)
 
 - **`package.json`** - Project configuration and dependencies
@@ -49,14 +56,22 @@ The ESIGN SDK is a JavaScript web component library that provides electronic sig
   - Multiple integration examples
   - Event handling demonstrations
   - Live testing interface with session token input
-  - Developer documentation examples
+  - **Multi-signature workflow demonstrations**
 
 - **`README.md`** - Comprehensive user documentation
 
   - API reference and integration guide
   - Session token creation examples
+  - **Template configuration API documentation**
+  - **Multi-signature API payload examples**
   - Security considerations
   - Flow diagrams and event specifications
+
+- **`development.md`** - Developer handoff documentation
+
+  - **Updated with multi-signature implementation details**
+  - Architecture overview and technical specifications
+  - Current state and next steps
 
 - **`8821.pdf`** - Template document (IRS Form 8821)
   - Used for development and testing
@@ -70,12 +85,13 @@ The ESIGN SDK is a JavaScript web component library that provides electronic sig
 │   Client App    │    │   ESIGN SDK      │    │  ESIGN Backend  │
 │                 │    │                  │    │                 │
 │ - HTML/JS       │◄──►│ - Web Component  │◄──►│ - Session API   │
-│ - Event Handler │    │ - PDF Renderer   │    │ - Document API  │
-│ - Session Token │    │ - Signature UI   │    │ - Storage       │
+│ - Event Handler │    │ - PDF Renderer   │    │ - Template API  │
+│ - Session Token │    │ - Multi-Sig UI   │    │ - Document API  │
+│                 │    │ - Smart Modals   │    │ - Storage       │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
-## 3. Signature Workflow Sequence Diagram
+## 3. Multi-Signature Workflow Sequence Diagram
 
 ```mermaid
 sequenceDiagram
@@ -88,23 +104,36 @@ sequenceDiagram
     Note over Client: User loads signature page
     Client->>Backend: Request session token
     Backend->>API: POST /v1/sessions (template_id, signer data)
-    API-->>Backend: Return session token + signature blocks
+    API-->>Backend: Return session token
     Backend-->>Client: Return session token
 
     Client->>SDK: Initialize component with session token
-    SDK->>SDK: Decode JWT, validate session
+    SDK->>API: GET /v1/templates/{templateId}/config
+    API-->>SDK: Return template config with signature blocks
+    SDK->>SDK: Parse signature blocks by type
     SDK->>API: GET /v1/documents/{templateId}
     API-->>SDK: Return PDF template
-    SDK->>SDK: Render PDF with signature blocks
+    SDK->>SDK: Render PDF with positioned signature blocks
 
-    Note over SDK: User reviews document
-    Note over SDK: User clicks signature block
-    SDK->>SDK: Show signature input dialog
-    SDK->>SDK: Capture signature data
-    SDK->>SDK: Update signature block UI
+    Note over SDK: User clicks first signature block
+    SDK->>SDK: Auto-scroll to signature block
+    SDK->>SDK: Show signature modal (first time for type)
+    SDK->>SDK: Capture signature, save by type
+    SDK->>SDK: Apply to current block
 
-    Note over SDK: User clicks "Complete Signing"
-    SDK->>API: POST /v1/sign (session token + signatures)
+    Note over SDK: User clicks second signature block (same type)
+    SDK->>SDK: Auto-scroll to signature block
+    SDK->>SDK: Auto-apply saved signature (no modal)
+    SDK->>SDK: Show success notification
+
+    Note over SDK: User clicks initial block (different type)
+    SDK->>SDK: Auto-scroll to initial block
+    SDK->>SDK: Show initial modal (first time for type)
+    SDK->>SDK: Capture initial, save by type
+
+    Note over SDK: All required signatures complete
+    SDK->>SDK: Enable "Complete Signing" button
+    SDK->>API: POST /v1/sign (multi-signature payload)
     API->>API: Generate final document from template
     API->>Storage: Store signed document
     Storage-->>API: Return document URL
@@ -112,19 +141,32 @@ sequenceDiagram
 
     SDK->>Client: Dispatch 'signing-complete' event
     Client->>Client: Handle completion (redirect, etc.)
-
-    Note over API: Optional: Upload to Tax OCR system
-    API->>Storage: Upload to business tax system
 ```
 
 ## 4. Important Technical Notes
 
-### Session Token Structure
+### Template Configuration System
 
-- **JWT Format**: Contains templateId, signer info, documentFields, signatureBlocks
-- **Security**: Never expose API keys in client-side code
-- **Expiration**: Tokens include expiration timestamp for session management
-- **Dev Mode**: Provides default values when session decoding fails
+- **API Endpoint**: `GET /v1/templates/{templateId}/config`
+- **Response Format**: Contains signature blocks with positioning, types, and requirements
+- **Signature Types**: "signature" and "initial" types supported
+- **Dynamic Positioning**: X,Y coordinates as percentages with width/height dimensions
+- **Backward Compatibility**: Falls back to session token signature blocks if template config fails
+
+### Multi-Signature Management
+
+- **Type-based Storage**: `capturedSignaturesByType` Map stores signatures by type
+- **Status Tracking**: `signatureTypeStatus` Map tracks modal display and capture state
+- **Smart Modal Flow**: Shows modal once per signature type, auto-applies for subsequent blocks
+- **Bulk Application**: "Apply to all" option for multiple blocks of same type
+- **Progress Tracking**: Real-time completion status with progress bar
+
+### Auto-scroll & Visual Feedback
+
+- **Smooth Scrolling**: Animated scroll to signature blocks with cubic easing
+- **Highlight Animation**: Pulse effect when signature blocks are clicked
+- **Success Notifications**: Toast notifications for auto-applied signatures
+- **Visual Indicators**: Hover tooltips showing auto-applied signature status
 
 ### PDF Rendering Engine
 
@@ -134,84 +176,96 @@ sequenceDiagram
 - **Zoom Levels**: [0.5, 0.75, 1, 1.25, 1.5, 2] with smooth transitions
 - **Panning**: Click-and-drag navigation for large documents
 
-### Signature Block System
+### Multi-Signature API Integration
 
-- **Positioning**: X,Y coordinates as percentages of page dimensions
-- **Types**: Currently supports 'signature' type, extensible for initials/dates
-- **Status Tracking**: Uses Set data structures for completion state
-- **Validation**: Ensures all required signatures are completed
+- **Enhanced Payload**: Supports multiple signatures in single API call
+- **Signature Structure**: Each signature includes image, position, type, and ID
+- **Mock Generation**: `generateMockSignatureImage()` creates base64 signature images for dev mode
+- **Type Validation**: Ensures all required signatures are completed before submission
 
 ### Event System
 
-- **signing-complete**: Fires with status, documentId, timestamp, signatures
+- **signing-complete**: Fires with status, documentId, timestamp, and all signatures
 - **signing-error**: Fires with error details for debugging
 - **Custom Events**: Uses native CustomEvent API for framework compatibility
+- **Enhanced Detail**: Event payload includes signature count and type information
 
 ### Development Mode Features
 
-- **Mock Responses**: Simulates API calls without backend
-- **Visual Indicator**: Yellow "Dev Mode" badge
-- **Console Logging**: Detailed action logging for debugging
-- **Flexible Validation**: Accepts invalid/missing session tokens
+- **Mock Template Config**: Realistic multi-signature template configuration
+- **Visual Indicators**: Yellow "Dev Mode" badge and enhanced logging
+- **Signature Generation**: Mock base64 signature image creation
+- **Type Testing**: Both signature and initial blocks for comprehensive testing
 
 ## 5. Next Steps
 
 ### Immediate Priorities
 
-1. **Testing Suite**: Add unit tests for core functionality
+1. **Production Backend Testing**: Test template configuration and multi-signature APIs with real backend
 
-   - Session token validation
-   - PDF rendering edge cases
-   - Signature completion logic
-   - Event emission scenarios
+   - Validate template config API response format
+   - Test multi-signature payload submission
+   - Verify signature image processing
 
-2. **Error Handling**: Improve error boundary handling
+2. **Performance Optimization**:
 
-   - Network failure recovery
-   - Invalid PDF format handling
-   - Session token expiration management
+   - Large document handling with many signature blocks
+   - Memory management for signature image storage
+   - Optimize auto-scroll animations for mobile
 
-3. **Performance Optimization**:
-   - Lazy load PDF.js only when needed
-   - Implement virtual scrolling for large documents
-   - Add signature block caching
+3. **Error Handling Enhancement**:
+   - Template config API failure scenarios
+   - Invalid signature block configurations
+   - Network failure recovery during multi-signature submission
 
 ### Future Enhancements
 
-4. **Multi-signature Types**: Extend beyond basic signatures
+4. **Extended Signature Types**: Beyond signature and initial
 
    - Date fields with auto-population
-   - Initial blocks for document changes
-   - Text fields for custom input
-   - Checkbox/radio button support
+   - Text input fields for custom data
+   - Checkbox and radio button support
+   - Numeric input validation
 
-5. **Mobile Optimization**:
+5. **Mobile & Touch Optimization**:
 
-   - Touch-friendly signature capture
-   - Responsive layout improvements
-   - Gesture-based navigation
+   - Touch-friendly signature capture canvas
+   - Responsive signature block sizing
+   - Gesture-based navigation improvements
+   - Mobile-optimized modal layouts
 
-6. **Accessibility**:
-   - ARIA labels for screen readers
-   - Keyboard navigation support
-   - High contrast mode support
+6. **Advanced UX Features**:
+   - Signature preview before application
+   - Undo/redo signature functionality
+   - Batch signature operations
+   - Custom signature styling options
 
-### Integration Considerations
+### Integration & Distribution
 
-7. **Framework Compatibility**: Test with popular frameworks
+7. **Framework Integration Examples**:
 
-   - React/Vue/Angular integration examples
-   - SSR compatibility verification
-   - TypeScript definitions
+   - React component wrapper with TypeScript
+   - Vue.js integration guide
+   - Angular directive implementation
+   - SSR compatibility testing
 
-8. **Security Enhancements**:
-   - Content Security Policy compliance
-   - XSS prevention measures
-   - Session token refresh handling
+8. **Security & Compliance**:
+   - Digital signature standards compliance
+   - Audit trail for signature events
+   - Enhanced session token security
+   - CSP compliance verification
 
-### Documentation & Distribution
+### Documentation & Testing
 
-9. **API Documentation**: Generate JSDoc documentation
-10. **NPM Publishing**: Prepare for package registry distribution
-11. **Integration Examples**: Create framework-specific examples
-12. **Performance Benchmarks**: Document loading times and memory usage
+9. **Comprehensive Testing Suite**:
+
+   - Unit tests for multi-signature logic
+   - Integration tests for template API
+   - E2E tests for complete signature workflows
+   - Performance benchmarks
+
+10. **Enhanced Documentation**:
+    - Interactive API documentation
+    - Multi-signature implementation guides
+    - Video tutorials for complex workflows
+    - Migration guide from single to multi-signature
