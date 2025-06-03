@@ -13,6 +13,10 @@ class ESIGNComponent extends HTMLElement {
     this.zoomLevels = [0.5, 0.75, 1, 1.25, 1.5, 2];
     this.signatureBlocks = new Set(); // Track all signature blocks
     this.completedSignatures = new Set(); // Track completed signatures
+
+    // Initialize signature navigation properties
+    this.currentSignatureIndex = 0;
+    this.orderedSignatureBlocks = [];
   }
 
   // Add method to load PDF.js
@@ -1014,13 +1018,15 @@ class ESIGNComponent extends HTMLElement {
       // Clear the container and add controls
       container.innerHTML = `
         <div class="pdf-controls">
-          <button id="prev-page" disabled>← Previous</button>
-          <span class="pdf-page-info">Page <span id="current-page">1</span> of ${
-            pdf.numPages
-          }</span>
-          <button id="next-page" ${
-            pdf.numPages <= 1 ? "disabled" : ""
-          }>Next →</button>
+          <button id="prev-signature" disabled>← Previous Signature</button>
+          <span class="pdf-page-info">Signature <span id="current-signature">1</span> of <span id="total-signatures">${
+            this.signatureBlocks ? this.signatureBlocks.length : 0
+          }</span></span>
+          <button id="next-signature" ${
+            !this.signatureBlocks || this.signatureBlocks.length <= 1
+              ? "disabled"
+              : ""
+          }>Next Signature →</button>
           <button id="zoom-out">−</button>
           <span class="pdf-zoom-info">100%</span>
           <button id="zoom-in">+</button>
@@ -1031,78 +1037,120 @@ class ESIGNComponent extends HTMLElement {
       // Get the containers and controls
       const pagesContainer = container.querySelector("#pages-container");
       const pdfContainer = this.shadowRoot.querySelector(".pdf-container");
-      const prevButton = container.querySelector("#prev-page");
-      const nextButton = container.querySelector("#next-page");
+      const prevSignatureButton = container.querySelector("#prev-signature");
+      const nextSignatureButton = container.querySelector("#next-signature");
       const zoomOutButton = container.querySelector("#zoom-out");
       const zoomInButton = container.querySelector("#zoom-in");
-      const currentPageSpan = container.querySelector("#current-page");
+      const currentSignatureSpan =
+        container.querySelector("#current-signature");
+      const totalSignaturesSpan = container.querySelector("#total-signatures");
       const zoomInfo = container.querySelector(".pdf-zoom-info");
 
-      // Scroll to page function
-      const scrollToPage = (pageNum) => {
-        const pageElement = pagesContainer.querySelector(
-          `[data-page="${pageNum}"]`
+      // Initialize signature navigation
+      this.currentSignatureIndex = 0;
+      this.orderedSignatureBlocks = [];
+
+      // Function to create ordered list of signature blocks (by page, then by position)
+      const createOrderedSignatureList = () => {
+        if (!this.signatureBlocks || !Array.isArray(this.signatureBlocks)) {
+          return [];
+        }
+
+        return [...this.signatureBlocks].sort((a, b) => {
+          // First sort by page
+          if (a.page !== b.page) {
+            return a.page - b.page;
+          }
+          // Then sort by Y position (top to bottom)
+          if (a.position.y !== b.position.y) {
+            return a.position.y - b.position.y;
+          }
+          // Finally sort by X position (left to right)
+          return a.position.x - b.position.x;
+        });
+      };
+
+      // Function to navigate to a specific signature block
+      const navigateToSignature = (index) => {
+        if (
+          !this.orderedSignatureBlocks ||
+          this.orderedSignatureBlocks.length === 0
+        ) {
+          return;
+        }
+
+        // Ensure index is within bounds
+        index = Math.max(
+          0,
+          Math.min(index, this.orderedSignatureBlocks.length - 1)
         );
-        if (pageElement) {
-          pdfContainer.scrollTo({
-            top: pageElement.offsetTop - container.offsetTop,
-            behavior: "smooth",
-          });
+        this.currentSignatureIndex = index;
+
+        const signatureBlock = this.orderedSignatureBlocks[index];
+
+        // Find the corresponding DOM element
+        const signatureElement = this.shadowRoot.querySelector(
+          `[data-block-id="${signatureBlock.id}"]`
+        );
+
+        if (signatureElement) {
+          // Auto-scroll to the signature block
+          this.scrollToSignatureBlock(signatureElement);
+
+          // Highlight the signature block
+          this.highlightSignatureBlock(signatureElement);
+        }
+
+        // Update UI
+        currentSignatureSpan.textContent = index + 1;
+        prevSignatureButton.disabled = false; // Always enabled for looping
+        nextSignatureButton.disabled = false; // Always enabled for looping
+
+        console.log(
+          `Navigated to signature ${index + 1} of ${
+            this.orderedSignatureBlocks.length
+          }`
+        );
+      };
+
+      // Update signature navigation when blocks are rendered
+      const updateSignatureNavigation = () => {
+        this.orderedSignatureBlocks = createOrderedSignatureList();
+        totalSignaturesSpan.textContent = this.orderedSignatureBlocks.length;
+
+        if (this.orderedSignatureBlocks.length > 0) {
+          // Start at the first signature
+          this.currentSignatureIndex = 0;
+          currentSignatureSpan.textContent = "1";
+          prevSignatureButton.disabled = false;
+          nextSignatureButton.disabled =
+            this.orderedSignatureBlocks.length <= 1;
+        } else {
+          currentSignatureSpan.textContent = "0";
+          prevSignatureButton.disabled = true;
+          nextSignatureButton.disabled = true;
         }
       };
 
-      // Update page number on scroll
-      const updateCurrentPage = () => {
-        const pages = Array.from(pagesContainer.querySelectorAll(".pdf-page"));
-        const containerRect = pdfContainer.getBoundingClientRect();
-        const containerTop = containerRect.top + pdfContainer.scrollTop;
-
-        // Find the page that is most visible in the viewport
-        const currentPage = pages.reduce(
-          (closest, page) => {
-            const rect = page.getBoundingClientRect();
-            const visibleHeight =
-              Math.min(rect.bottom, containerRect.bottom) -
-              Math.max(rect.top, containerRect.top);
-            return visibleHeight > closest.visibleHeight
-              ? { element: page, visibleHeight }
-              : closest;
-          },
-          { element: pages[0], visibleHeight: 0 }
-        ).element;
-
-        const pageNum = parseInt(currentPage.dataset.page);
-        currentPageSpan.textContent = pageNum;
-        prevButton.disabled = pageNum === 1;
-        nextButton.disabled = pageNum === pdf.numPages;
-      };
-
-      // Listen for scroll events on the PDF container
-      pdfContainer.addEventListener("scroll", updateCurrentPage);
-
-      // Navigation button handlers
-      prevButton.addEventListener("click", () => {
-        const currentPage = parseInt(currentPageSpan.textContent);
-        if (currentPage > 1) {
-          scrollToPage(currentPage - 1);
-          updateCurrentPage();
-        }
+      // Navigation button handlers with looping
+      prevSignatureButton.addEventListener("click", () => {
+        console.log("Previous signature button clicked");
+        this.navigateToPreviousSignature();
       });
 
-      nextButton.addEventListener("click", () => {
-        const currentPage = parseInt(currentPageSpan.textContent);
-        if (currentPage < pdf.numPages) {
-          scrollToPage(currentPage + 1);
-          updateCurrentPage();
-        }
+      nextSignatureButton.addEventListener("click", () => {
+        console.log("Next signature button clicked");
+        this.navigateToNextSignature();
       });
 
-      // Add keyboard navigation
+      // Add keyboard navigation for signatures
       pdfContainer.addEventListener("keydown", (e) => {
         if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-          nextButton.click();
+          this.navigateToNextSignature();
+          e.preventDefault();
         } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-          prevButton.click();
+          this.navigateToPreviousSignature();
+          e.preventDefault();
         }
       });
 
@@ -1225,6 +1273,9 @@ class ESIGNComponent extends HTMLElement {
 
       // Initial render
       await this.renderAllPages(pdf, pagesContainer);
+
+      // Store the navigation update function for later use
+      this.updateSignatureNavigation = updateSignatureNavigation;
     } catch (error) {
       console.error("Error loading PDF preview:", error);
       const container = this.shadowRoot.querySelector("#pdf-viewer-container");
@@ -1382,6 +1433,55 @@ class ESIGNComponent extends HTMLElement {
 
     // Update signature status after rendering all pages
     this.updateSignatureStatus();
+
+    // Update signature navigation after all blocks are rendered
+    this.updateSignatureNavigation();
+
+    // Auto-scroll to the first signature block after rendering is complete
+    if (this.signatureBlocks && this.signatureBlocks.length > 0) {
+      // Use a small delay to ensure DOM elements are properly positioned
+      setTimeout(() => {
+        // Use the new navigation system to go to the first signature
+        if (
+          this.orderedSignatureBlocks &&
+          this.orderedSignatureBlocks.length > 0
+        ) {
+          const firstSignatureBlock = this.orderedSignatureBlocks[0];
+          const firstSignatureElement = this.shadowRoot.querySelector(
+            `[data-block-id="${firstSignatureBlock.id}"]`
+          );
+
+          if (firstSignatureElement) {
+            console.log(
+              "Auto-scrolling to first signature block using navigation system"
+            );
+            this.scrollToSignatureBlock(firstSignatureElement);
+            this.highlightSignatureBlock(firstSignatureElement);
+
+            // Update the navigation counter
+            this.currentSignatureIndex = 0;
+            const currentSignatureSpan =
+              this.shadowRoot.querySelector("#current-signature");
+            if (currentSignatureSpan) {
+              currentSignatureSpan.textContent = "1";
+            }
+          }
+        } else {
+          // Fallback to the old method if navigation system isn't ready
+          const firstSignatureElement = this.shadowRoot.querySelector(
+            ".signature-block:not(.completed)"
+          );
+
+          if (firstSignatureElement) {
+            console.log(
+              "Auto-scrolling to first signature block (fallback method)"
+            );
+            this.scrollToSignatureBlock(firstSignatureElement);
+            this.highlightSignatureBlock(firstSignatureElement);
+          }
+        }
+      }, 300); // Small delay to ensure smooth rendering
+    }
   }
 
   /**
@@ -1863,6 +1963,160 @@ class ESIGNComponent extends HTMLElement {
       signatureElement.style.boxShadow = originalBoxShadow;
       signatureElement.classList.remove("highlighted");
     }, 1000);
+  }
+
+  /**
+   * Creates an ordered list of signature blocks sorted by page, then position
+   * @returns {Array} Ordered array of signature blocks
+   */
+  createOrderedSignatureList() {
+    if (!this.signatureBlocks || !Array.isArray(this.signatureBlocks)) {
+      return [];
+    }
+
+    return [...this.signatureBlocks].sort((a, b) => {
+      // First sort by page
+      if (a.page !== b.page) {
+        return a.page - b.page;
+      }
+      // Then sort by Y position (top to bottom)
+      if (a.position.y !== b.position.y) {
+        return a.position.y - b.position.y;
+      }
+      // Finally sort by X position (left to right)
+      return a.position.x - b.position.x;
+    });
+  }
+
+  /**
+   * Navigates to a specific signature block by index
+   * @param {number} index The index of the signature block to navigate to
+   */
+  navigateToSignature(index) {
+    if (
+      !this.orderedSignatureBlocks ||
+      this.orderedSignatureBlocks.length === 0
+    ) {
+      console.log("No signature blocks available for navigation");
+      return;
+    }
+
+    // Ensure index is within bounds
+    index = Math.max(
+      0,
+      Math.min(index, this.orderedSignatureBlocks.length - 1)
+    );
+    this.currentSignatureIndex = index;
+
+    const signatureBlock = this.orderedSignatureBlocks[index];
+
+    // Find the corresponding DOM element
+    const signatureElement = this.shadowRoot.querySelector(
+      `[data-block-id="${signatureBlock.id}"]`
+    );
+
+    if (signatureElement) {
+      // Auto-scroll to the signature block
+      this.scrollToSignatureBlock(signatureElement);
+
+      // Highlight the signature block
+      this.highlightSignatureBlock(signatureElement);
+    } else {
+      console.log(
+        `Could not find signature element for block ID: ${signatureBlock.id}`
+      );
+    }
+
+    // Update UI
+    const currentSignatureSpan =
+      this.shadowRoot.querySelector("#current-signature");
+    if (currentSignatureSpan) {
+      currentSignatureSpan.textContent = index + 1;
+    }
+
+    console.log(
+      `Navigated to signature ${index + 1} of ${
+        this.orderedSignatureBlocks.length
+      }`,
+      signatureBlock
+    );
+  }
+
+  /**
+   * Updates the signature navigation system after blocks are rendered
+   */
+  updateSignatureNavigation() {
+    this.orderedSignatureBlocks = this.createOrderedSignatureList();
+
+    const totalSignaturesSpan =
+      this.shadowRoot.querySelector("#total-signatures");
+    const currentSignatureSpan =
+      this.shadowRoot.querySelector("#current-signature");
+    const prevSignatureButton =
+      this.shadowRoot.querySelector("#prev-signature");
+    const nextSignatureButton =
+      this.shadowRoot.querySelector("#next-signature");
+
+    if (totalSignaturesSpan) {
+      totalSignaturesSpan.textContent = this.orderedSignatureBlocks.length;
+    }
+
+    if (this.orderedSignatureBlocks.length > 0) {
+      // Start at the first signature
+      this.currentSignatureIndex = 0;
+      if (currentSignatureSpan) {
+        currentSignatureSpan.textContent = "1";
+      }
+      if (prevSignatureButton) {
+        prevSignatureButton.disabled = this.orderedSignatureBlocks.length <= 1;
+      }
+      if (nextSignatureButton) {
+        nextSignatureButton.disabled = this.orderedSignatureBlocks.length <= 1;
+      }
+    } else {
+      if (currentSignatureSpan) {
+        currentSignatureSpan.textContent = "0";
+      }
+      if (prevSignatureButton) {
+        prevSignatureButton.disabled = true;
+      }
+      if (nextSignatureButton) {
+        nextSignatureButton.disabled = true;
+      }
+    }
+
+    console.log("Signature navigation updated:", {
+      total: this.orderedSignatureBlocks.length,
+      orderedBlocks: this.orderedSignatureBlocks,
+    });
+  }
+
+  /**
+   * Navigates to the previous signature with looping
+   */
+  navigateToPreviousSignature() {
+    if (this.orderedSignatureBlocks.length === 0) return;
+
+    let newIndex = this.currentSignatureIndex - 1;
+    // Loop to last signature if at first
+    if (newIndex < 0) {
+      newIndex = this.orderedSignatureBlocks.length - 1;
+    }
+    this.navigateToSignature(newIndex);
+  }
+
+  /**
+   * Navigates to the next signature with looping
+   */
+  navigateToNextSignature() {
+    if (this.orderedSignatureBlocks.length === 0) return;
+
+    let newIndex = this.currentSignatureIndex + 1;
+    // Loop to first signature if at last
+    if (newIndex >= this.orderedSignatureBlocks.length) {
+      newIndex = 0;
+    }
+    this.navigateToSignature(newIndex);
   }
 }
 
