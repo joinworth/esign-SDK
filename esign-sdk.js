@@ -416,6 +416,8 @@ class ESIGNComponent extends HTMLElement {
           <button id="start-signing" class="esign-button" style="display: none;" disabled>
             Complete Signing
           </button>
+          <div id="remaining-signatures" style="display: none; font-size: 12px; color: #666; margin-top: 5px; text-align: center;">
+          </div>
         </div>
       </div>
     `;
@@ -433,6 +435,10 @@ class ESIGNComponent extends HTMLElement {
       const signButton = this.shadowRoot.querySelector("#start-signing");
       if (signButton) {
         signButton.addEventListener("click", () => {
+          // Disable button immediately to prevent multiple submissions
+          signButton.disabled = true;
+          signButton.textContent = "Processing...";
+
           this.startSigning(this.getAttribute("session-token"));
         });
       }
@@ -883,6 +889,21 @@ class ESIGNComponent extends HTMLElement {
         result = await response.json();
       }
 
+      // Update button to show success state
+      const signButton = this.shadowRoot.querySelector("#start-signing");
+      if (signButton) {
+        signButton.textContent = "Signing Successful ✓";
+        signButton.style.backgroundColor = "#28a745"; // Green color for success
+      }
+
+      // Hide remaining signatures indicator when signing is complete
+      const remainingSignaturesDiv = this.shadowRoot.querySelector(
+        "#remaining-signatures"
+      );
+      if (remainingSignaturesDiv) {
+        remainingSignaturesDiv.style.display = "none";
+      }
+
       // Dispatch custom event with signing result
       const event = new CustomEvent("signing-complete", {
         bubbles: true,
@@ -892,6 +913,14 @@ class ESIGNComponent extends HTMLElement {
       this.dispatchEvent(event);
     } catch (error) {
       console.error("Error during signing process:", error);
+
+      // Re-enable the button on error so user can retry
+      const signButton = this.shadowRoot.querySelector("#start-signing");
+      if (signButton) {
+        signButton.disabled = false;
+        signButton.textContent = "Complete Signing";
+      }
+
       const event = new CustomEvent("signing-error", {
         bubbles: true,
         composed: true,
@@ -1834,6 +1863,9 @@ class ESIGNComponent extends HTMLElement {
     const progressText = this.shadowRoot.querySelector("#progress-text");
     const progressFill = this.shadowRoot.querySelector("#progress-fill");
     const completeButton = this.shadowRoot.querySelector("#start-signing");
+    const remainingSignaturesDiv = this.shadowRoot.querySelector(
+      "#remaining-signatures"
+    );
 
     // Return early if elements don't exist yet
     if (!progressContainer || !progressText || !progressFill) {
@@ -1847,6 +1879,7 @@ class ESIGNComponent extends HTMLElement {
     const completedSignatures = this.signatureBlocks
       ? this.signatureBlocks.filter((block) => block.completed).length
       : 0;
+    const remainingSignatures = totalSignatures - completedSignatures;
 
     // Update progress text and bar
     progressText.textContent = `${completedSignatures}/${totalSignatures}`;
@@ -1874,13 +1907,36 @@ class ESIGNComponent extends HTMLElement {
           completeButton.textContent = "Complete Signing";
           progressContainer.style.background = "#d4edda";
           progressContainer.style.color = "#155724";
+
+          // Keep showing remaining signatures until signing process is complete
+          if (remainingSignaturesDiv && remainingSignatures > 0) {
+            remainingSignaturesDiv.textContent = `(${remainingSignatures} signature${
+              remainingSignatures === 1 ? "" : "s"
+            } remaining)`;
+            remainingSignaturesDiv.style.display = "block";
+          } else if (remainingSignaturesDiv && remainingSignatures === 0) {
+            remainingSignaturesDiv.style.display = "none";
+          }
         } else {
           completeButton.textContent = `Sign Document (${completedSignatures}/${totalSignatures})`;
           progressContainer.style.background = "#f8f9fa";
           progressContainer.style.color = "inherit";
+
+          // Show remaining signatures indicator
+          if (remainingSignaturesDiv && remainingSignatures > 0) {
+            remainingSignaturesDiv.textContent = `(${remainingSignatures} signature${
+              remainingSignatures === 1 ? "" : "s"
+            } remaining)`;
+            remainingSignaturesDiv.style.display = "block";
+          } else if (remainingSignaturesDiv && remainingSignatures === 0) {
+            remainingSignaturesDiv.style.display = "none";
+          }
         }
       } else {
         completeButton.style.display = "none";
+        if (remainingSignaturesDiv) {
+          remainingSignaturesDiv.style.display = "none";
+        }
       }
     }
   }
