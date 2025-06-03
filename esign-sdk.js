@@ -297,6 +297,16 @@ class ESIGNComponent extends HTMLElement {
           font-size: 10px;
         }
 
+        .signature-block.highlighted {
+          animation: pulse 1s ease-in-out;
+        }
+
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+
         .signature-modal {
           position: fixed;
           top: 0;
@@ -461,14 +471,27 @@ class ESIGNComponent extends HTMLElement {
         );
       }
 
-      // Initialize tracking sets
-      this.completedSignatures = new Set();
+      // Initialize signature type management
       this.capturedSignaturesByType = new Map(); // Store captured signatures by type
+      this.signatureTypeStatus = new Map(); // Track if we've shown modal for each type
+
+      // Initialize tracking for each signature type found in blocks
+      const signatureTypes = [
+        ...new Set(this.signatureBlocks.map((block) => block.type)),
+      ];
+      signatureTypes.forEach((type) => {
+        this.signatureTypeStatus.set(type, {
+          modalShown: false,
+          captured: false,
+        });
+      });
 
       console.log("Signature management initialized:", {
         templateConfig: this.templateConfig,
         signatureBlocks: this.signatureBlocks,
         totalSignatures: this.signatureBlocks.length,
+        signatureTypes: signatureTypes,
+        typeStatus: this.signatureTypeStatus,
       });
     } catch (error) {
       console.error("Error initializing signature management:", error);
@@ -484,6 +507,14 @@ class ESIGNComponent extends HTMLElement {
           completed: false,
         },
       ];
+
+      // Initialize fallback type tracking
+      this.capturedSignaturesByType = new Map();
+      this.signatureTypeStatus = new Map();
+      this.signatureTypeStatus.set("signature", {
+        modalShown: false,
+        captured: false,
+      });
     }
   }
 
@@ -1320,7 +1351,29 @@ class ESIGNComponent extends HTMLElement {
           // Add click handler only if not completed
           if (!blockConfig.completed) {
             signatureBlock.addEventListener("click", () => {
-              this.showSignatureModal(blockConfig, signatureBlock);
+              // Auto-scroll to the clicked signature block
+              this.scrollToSignatureBlock(signatureBlock);
+
+              // Highlight the clicked block
+              this.highlightSignatureBlock(signatureBlock);
+
+              // Check if we've already captured this signature type
+              const typeStatus = this.signatureTypeStatus.get(blockConfig.type);
+              const capturedSignature = this.capturedSignaturesByType.get(
+                blockConfig.type
+              );
+
+              if (typeStatus && typeStatus.captured && capturedSignature) {
+                // Auto-apply existing signature for this type
+                this.autoApplySignature(
+                  blockConfig,
+                  signatureBlock,
+                  capturedSignature
+                );
+              } else {
+                // Show modal for first signature of this type
+                this.showSignatureModal(blockConfig, signatureBlock);
+              }
             });
           }
         });
@@ -1339,6 +1392,12 @@ class ESIGNComponent extends HTMLElement {
   showSignatureModal(blockConfig, signatureElement) {
     console.log("Signature block clicked:", blockConfig);
 
+    // Mark that we've shown the modal for this type
+    const typeStatus = this.signatureTypeStatus.get(blockConfig.type);
+    if (typeStatus) {
+      typeStatus.modalShown = true;
+    }
+
     // Create modal
     const modal = document.createElement("div");
     modal.className = "signature-modal";
@@ -1350,6 +1409,12 @@ class ESIGNComponent extends HTMLElement {
       blockConfig.type === "initial"
         ? "Enter your initials"
         : "Enter your signature";
+
+    // Count how many blocks of this type exist
+    const blocksOfSameType = this.signatureBlocks.filter(
+      (block) => block.type === blockConfig.type
+    );
+    const showApplyToAllOption = blocksOfSameType.length > 1;
 
     modalContent.innerHTML = `
       <h3>${title}</h3>
@@ -1370,6 +1435,18 @@ class ESIGNComponent extends HTMLElement {
       <input type="text" placeholder="Type your ${
         blockConfig.type === "initial" ? "initials" : "name"
       }" style="margin: 10px 0; padding: 5px; width: 100%;">
+      ${
+        showApplyToAllOption
+          ? `
+      <div style="margin: 10px 0;">
+        <label style="display: flex; align-items: center; cursor: pointer;">
+          <input type="checkbox" id="apply-to-all-checkbox" style="margin-right: 8px;">
+          <span style="font-size: 14px;">Apply this ${blockConfig.type} to all ${blockConfig.type} blocks (${blocksOfSameType.length} total)</span>
+        </label>
+      </div>
+      `
+          : ""
+      }
       <div class="signature-modal-buttons">
         <button class="modal-button cancel-button">Cancel</button>
         <button class="modal-button primary" id="sign-button" disabled>${title
@@ -1384,6 +1461,9 @@ class ESIGNComponent extends HTMLElement {
     // Get references to form elements
     const input = modalContent.querySelector("input[type='text']");
     const consentCheckbox = modalContent.querySelector("#consent-checkbox");
+    const applyToAllCheckbox = modalContent.querySelector(
+      "#apply-to-all-checkbox"
+    );
     const signButton = modalContent.querySelector("#sign-button");
     const cancelButton = modalContent.querySelector(".cancel-button");
 
@@ -1407,28 +1487,44 @@ class ESIGNComponent extends HTMLElement {
     const handleSign = () => {
       const signatureText = input.value.trim();
       if (signatureText && consentCheckbox.checked) {
-        // Update block configuration
-        blockConfig.completed = true;
-        blockConfig.signatureText = signatureText;
-        blockConfig.timestamp = new Date().toISOString();
+        // Save the captured signature for this type
+        const capturedSignature = {
+          text: signatureText,
+          timestamp: new Date().toISOString(),
+          type: blockConfig.type,
+        };
 
-        // Update DOM element
-        signatureElement.textContent = signatureText;
-        signatureElement.className =
-          signatureElement.className.replace("required", "") + " completed";
-        signatureElement.style.cursor = "default";
+        this.capturedSignaturesByType.set(blockConfig.type, capturedSignature);
 
-        // Remove click handler
-        const newElement = signatureElement.cloneNode(true);
-        signatureElement.parentNode.replaceChild(newElement, signatureElement);
+        // Update type status
+        const typeStatus = this.signatureTypeStatus.get(blockConfig.type);
+        if (typeStatus) {
+          typeStatus.captured = true;
+        }
+
+        // Apply to current block
+        this.applySignatureToBlock(
+          blockConfig,
+          signatureElement,
+          capturedSignature
+        );
+
+        // If apply to all is checked, apply to all blocks of this type
+        if (applyToAllCheckbox && applyToAllCheckbox.checked) {
+          this.applySignatureToAllBlocksOfType(
+            blockConfig.type,
+            capturedSignature
+          );
+        }
 
         // Close modal
         modal.remove();
 
-        // Update signature status
-        this.updateSignatureStatus();
-
-        console.log("Signature completed:", blockConfig);
+        console.log(
+          "Signature captured for type:",
+          blockConfig.type,
+          capturedSignature
+        );
       }
     };
 
@@ -1438,6 +1534,154 @@ class ESIGNComponent extends HTMLElement {
         handleSign();
       }
     });
+  }
+
+  /**
+   * Applies a signature to a specific block
+   * @param {Object} blockConfig Configuration object for the signature block
+   * @param {HTMLElement} signatureElement DOM element for the signature block
+   * @param {Object} capturedSignature The captured signature data
+   */
+  applySignatureToBlock(blockConfig, signatureElement, capturedSignature) {
+    // Update block configuration
+    blockConfig.completed = true;
+    blockConfig.signatureText = capturedSignature.text;
+    blockConfig.timestamp = capturedSignature.timestamp;
+
+    // Update DOM element
+    signatureElement.textContent = capturedSignature.text;
+    signatureElement.className =
+      signatureElement.className.replace("required", "") + " completed";
+    signatureElement.style.cursor = "default";
+
+    // Remove click handler
+    const newElement = signatureElement.cloneNode(true);
+    signatureElement.parentNode.replaceChild(newElement, signatureElement);
+
+    // Update signature status
+    this.updateSignatureStatus();
+  }
+
+  /**
+   * Applies a signature to all blocks of the specified type
+   * @param {string} signatureType The type of signature blocks to update
+   * @param {Object} capturedSignature The captured signature data
+   */
+  applySignatureToAllBlocksOfType(signatureType, capturedSignature) {
+    const blocksOfType = this.signatureBlocks.filter(
+      (block) => block.type === signatureType && !block.completed
+    );
+
+    console.log(
+      `Applying ${signatureType} to ${blocksOfType.length} remaining blocks`
+    );
+
+    // Find and update DOM elements for all blocks of this type
+    const allSignatureElements =
+      this.shadowRoot.querySelectorAll(".signature-block");
+
+    blocksOfType.forEach((blockConfig) => {
+      // Find the corresponding DOM element
+      const signatureElement = Array.from(allSignatureElements).find(
+        (element) => element.dataset.blockId === blockConfig.id
+      );
+
+      if (signatureElement && !blockConfig.completed) {
+        this.applySignatureToBlock(
+          blockConfig,
+          signatureElement,
+          capturedSignature
+        );
+      }
+    });
+
+    // Show notification
+    if (blocksOfType.length > 0) {
+      this.showAutoApplyNotification(
+        signatureType,
+        `Applied to ${blocksOfType.length + 1} ${signatureType} blocks`
+      );
+    }
+  }
+
+  /**
+   * Auto-applies a previously captured signature to a signature block
+   * @param {Object} blockConfig Configuration object for the signature block
+   * @param {HTMLElement} signatureElement DOM element for the signature block
+   * @param {Object} capturedSignature Previously captured signature data
+   */
+  autoApplySignature(blockConfig, signatureElement, capturedSignature) {
+    console.log(
+      `Auto-applying ${blockConfig.type} signature:`,
+      capturedSignature
+    );
+
+    // Update block configuration
+    blockConfig.completed = true;
+    blockConfig.signatureText = capturedSignature.text;
+    blockConfig.timestamp = new Date().toISOString();
+    blockConfig.autoApplied = true;
+
+    // Update DOM element
+    signatureElement.textContent = capturedSignature.text;
+    signatureElement.className =
+      signatureElement.className.replace("required", "") + " completed";
+    signatureElement.style.cursor = "default";
+
+    // Remove click handler
+    const newElement = signatureElement.cloneNode(true);
+    signatureElement.parentNode.replaceChild(newElement, signatureElement);
+
+    // Add visual indicator for auto-applied signature
+    newElement.title = `Auto-applied ${blockConfig.type}: ${capturedSignature.text}`;
+
+    // Update signature status
+    this.updateSignatureStatus();
+
+    // Show brief notification
+    this.showAutoApplyNotification(blockConfig.type, capturedSignature.text);
+  }
+
+  /**
+   * Shows a brief notification when a signature is auto-applied
+   * @param {string} type The signature type (signature/initial)
+   * @param {string} text The signature text
+   */
+  showAutoApplyNotification(type, text) {
+    const notification = document.createElement("div");
+    notification.className = "auto-apply-notification";
+    notification.innerHTML = `
+      <div style="
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #28a745;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 4px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        z-index: 1001;
+        font-size: 14px;
+        animation: slideIn 0.3s ease-out;
+      ">
+        ✓ ${type === "initial" ? "Initial" : "Signature"} auto-applied: ${text}
+      </div>
+      <style>
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      </style>
+    `;
+
+    this.shadowRoot.appendChild(notification);
+
+    // Remove notification after 2 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.remove();
+      }
+    }, 2000);
   }
 
   // Add helper method to check if all required signatures are complete
@@ -1539,6 +1783,86 @@ class ESIGNComponent extends HTMLElement {
         completeButton.style.display = "none";
       }
     }
+  }
+
+  /**
+   * Scrolls smoothly to a signature block element in the PDF container
+   * @param {HTMLElement} signatureElement The signature block to scroll to
+   */
+  scrollToSignatureBlock(signatureElement) {
+    const pdfContainer = this.shadowRoot.querySelector(".pdf-container");
+    if (!pdfContainer || !signatureElement) return;
+
+    // Get the position of the signature block relative to the PDF container
+    const containerRect = pdfContainer.getBoundingClientRect();
+    const elementRect = signatureElement.getBoundingClientRect();
+
+    // Calculate the target scroll position
+    const targetScrollTop =
+      pdfContainer.scrollTop +
+      (elementRect.top - containerRect.top) -
+      pdfContainer.clientHeight / 2 +
+      elementRect.height / 2;
+    const targetScrollLeft =
+      pdfContainer.scrollLeft +
+      (elementRect.left - containerRect.left) -
+      pdfContainer.clientWidth / 2 +
+      elementRect.width / 2;
+
+    // Smooth scroll animation
+    const startScrollTop = pdfContainer.scrollTop;
+    const startScrollLeft = pdfContainer.scrollLeft;
+    const scrollTopDistance = targetScrollTop - startScrollTop;
+    const scrollLeftDistance = targetScrollLeft - startScrollLeft;
+    const duration = 500; // 500ms animation
+    const startTime = performance.now();
+
+    const animateScroll = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Easing function for smooth animation
+      const easeInOutCubic =
+        progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+      pdfContainer.scrollTop =
+        startScrollTop + scrollTopDistance * easeInOutCubic;
+      pdfContainer.scrollLeft =
+        startScrollLeft + scrollLeftDistance * easeInOutCubic;
+
+      if (progress < 1) {
+        requestAnimationFrame(animateScroll);
+      }
+    };
+
+    requestAnimationFrame(animateScroll);
+  }
+
+  /**
+   * Highlights a signature block temporarily to draw attention
+   * @param {HTMLElement} signatureElement The signature block to highlight
+   */
+  highlightSignatureBlock(signatureElement) {
+    if (!signatureElement) return;
+
+    // Add highlight class
+    signatureElement.classList.add("highlighted");
+
+    // Add temporary highlight styles
+    const originalBorderColor = signatureElement.style.borderColor;
+    const originalBoxShadow = signatureElement.style.boxShadow;
+
+    signatureElement.style.borderColor = "#ffc107";
+    signatureElement.style.boxShadow = "0 0 10px rgba(255, 193, 7, 0.5)";
+
+    // Remove highlight after animation
+    setTimeout(() => {
+      signatureElement.style.borderColor = originalBorderColor;
+      signatureElement.style.boxShadow = originalBoxShadow;
+      signatureElement.classList.remove("highlighted");
+    }, 1000);
   }
 }
 
