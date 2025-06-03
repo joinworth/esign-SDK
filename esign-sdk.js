@@ -1549,9 +1549,9 @@ class ESIGNComponent extends HTMLElement {
       }
       <div class="signature-modal-buttons">
         <button class="modal-button cancel-button">Cancel</button>
-        <button class="modal-button primary" id="sign-button" disabled>${title
-          .replace("Enter your ", "")
-          .replace("e", "E")}</button>
+        <button class="modal-button primary" id="sign-button" disabled>${
+          blockConfig.type === "initial" ? "Initial" : "Sign"
+        }</button>
       </div>
     `;
 
