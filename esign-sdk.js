@@ -1548,12 +1548,10 @@ class ESIGNComponent extends HTMLElement {
     modalContent.innerHTML = `
       <h3>${title}</h3>
       <div class="consent-statement" style="margin-bottom: 15px; font-size: 12px; line-height: 1.4; max-width: 400px; color: #555;">
-        By checking this box and clicking "${title
-          .replace("Enter your ", "")
-          .replace(
-            "e",
-            "E"
-          )}", you (i) consent to conduct business electronically and to receive all related disclosures, agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, and (iii) agree that your electronic signature is legally binding and that you intend to electronically sign this document. You may withdraw your consent or request a paper copy by contacting us at support@joinworth.com or visiting www.joinworth.com.
+        By checking this box and clicking "${title.replace(
+          "Enter your ",
+          ""
+        )}", you (i) consent to conduct business electronically and to receive all related disclosures, agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, and (iii) agree that your electronic signature is legally binding and that you intend to electronically sign this document. You may withdraw your consent or request a paper copy by contacting us at support@joinworth.com or visiting www.joinworth.com.
       </div>
       <div style="margin-bottom: 10px;">
         <label style="display: flex; align-items: center; cursor: pointer;">
