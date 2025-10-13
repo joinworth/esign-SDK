@@ -86,11 +86,15 @@ class ESIGNComponent extends HTMLElement {
       sessionDetails.documentFields = sessionDetails.documentFields || {};
     }
 
+    // Get white label settings. If none provided, use default settings.
+    let whiteLabelSettings = this.getAttribute("white-label-settings") || {};
+
     // Store session data
     this.templateId = sessionDetails.templateId;
     this.signerFields = sessionDetails.signer;
     this.documentFields = sessionDetails.documentFields;
     this.documentId = sessionDetails.documentId;
+    this.whiteLabelSettings = whiteLabelSettings;
 
     // Initialize component with loading state
     this.renderInitialUI();
@@ -106,30 +110,39 @@ class ESIGNComponent extends HTMLElement {
     // Render the component's UI
     this.shadowRoot.innerHTML = `
       <style>
+        @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Pacifico:wght@300;400;500;600;700&display=swap');
         /* Container styles */
         .esign-container {
-          font-family: Arial, sans-serif;
-          border: 1px solid #ccc;
-          padding: 20px;
-          max-width: 500px;
+          font-family: 'Figtree', sans-serif;
+          padding-top: 13px;
+          padding-bottom: 13px;
           margin: auto;
+          height: 100%;
+          width: 100%;
           text-align: center;
           position: relative;
-          padding-bottom: 60px;
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
         }
         /* Primary action button */
         .esign-button {
-          padding: 10px 20px;
-          background-color: #007bff;
-          color: #fff;
-          border: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 80px;
+          height: 48px;
+          gap: 10px;
+          border-radius: 8px;
           cursor: pointer;
-        }
-        .esign-button:hover {
-          background-color: #0056b3;
+          font-size: 16px;
+          line-height: 24px;
+          font-weight: 500;
+          border: none;
         }
         .esign-button:disabled {
-          background-color: #6c757d;
+          opacity: 40%;
           cursor: not-allowed;
         }
         /* Development mode indicator */
@@ -169,11 +182,9 @@ class ESIGNComponent extends HTMLElement {
         }
         .pdf-container {
           width: 100%;
-          height: 250px;
-          margin: 20px 0;
-          border: 1px solid #ccc;
+          height: 100%;
           overflow: auto;
-          background: #f5f5f5;
+          background: #E5E7EB;
           cursor: grab;
           position: relative;
         }
@@ -183,10 +194,21 @@ class ESIGNComponent extends HTMLElement {
           user-select: none;
         }
 
+        .pdf-container::-webkit-scrollbar {
+          width: 0;
+        }
+        &::-webkit-scrollbar-track {
+          display: none;
+        }
+        &::-webkit-scrollbar-thumb {
+          display: none;
+        }
+        
         #pages-container {
           position: relative;
           min-width: fit-content;
-          padding: 20px;
+          padding: 13px;
+          gap: 13px;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -196,6 +218,7 @@ class ESIGNComponent extends HTMLElement {
           background: white;
           box-shadow: 0 2px 5px rgba(0,0,0,0.1);
           margin: 0 auto;
+          padding: 7px;
           max-width: none;
         }
         
@@ -207,23 +230,20 @@ class ESIGNComponent extends HTMLElement {
         }
 
         .pdf-controls {
-          background: #fff;
-          padding: 10px;
-          border-bottom: 1px solid #ccc;
           display: flex;
-          justify-content: center;
+          padding-left: 24px;
+          padding-right: 24px;
+          padding-bottom: 13px;
+          justify-content: space-between;
           align-items: center;
-          gap: 15px;
-          position: sticky;
-          top: 0;
-          z-index: 1;
         }
 
-        .pdf-controls button {
-          padding: 5px 10px;
-          background: #f8f9fa;
-          border: 1px solid #ddd;
-          border-radius: 4px;
+        .page-info-controls button {
+          height: 48px;
+          width: 48px;
+          background: #FFFFFF;
+          border: 1px solid #E5E7EB;
+          border-radius: 8px;
           cursor: pointer;
         }
 
@@ -237,15 +257,39 @@ class ESIGNComponent extends HTMLElement {
         }
 
         .pdf-page-info {
-          font-size: 14px;
-          color: #666;
+          font-size: 16px;
+          color: #6B7280;
+          padding: 8px;
         }
 
         .pdf-zoom-info {
-          font-size: 14px;
-          color: #666;
-          min-width: 60px;
-          text-align: center;
+          display: flex;
+          height: 48px;
+          width: 64px;
+          font-size: 16px;
+          color: #1F2937
+          font-weight: 500;
+          align-items: center;
+          justify-content: center;
+          border-left: 1px solid #E5E7EB;
+          border-right: 1px solid #E5E7EB;
+        }
+
+        .pdf-zoom-controls {
+          display: flex;
+          align-items: center;
+          border: 1px solid #E5E7EB;
+          border-radius: 8px;
+          overflow: hidden;
+          width: max-content;
+        }
+
+        .pdf-zoom-controls button {
+          width: 48px;
+          height: 48px;
+          background: #FFFFFF;
+          border: none;
+          cursor: pointer;
         }
 
         .pdf-page {
@@ -256,44 +300,42 @@ class ESIGNComponent extends HTMLElement {
           position: absolute;
           bottom: 10px;
           right: 10px;
-          background: rgba(0, 0, 0, 0.5);
-          color: white;
-          padding: 2px 8px;
-          border-radius: 12px;
+          background: #F3F4F6;
+          color: #1F2937;
+          padding: 7px 8px;
+          border-radius: 100px;
           font-size: 12px;
         }
 
         .signature-block {
+          font-family:'Figtree', sans-serif;
           position: absolute;
-          border: 2px dashed #007bff;
+          border: 1px dashed #2563EB;
+          border-radius: 8px;
           background: rgba(0, 123, 255, 0.1);
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 12px;
-          color: #007bff;
-          font-weight: bold;
+          font-size: 14px;
+          color: #2563EB;
+          font-weight: 500;
           text-align: center;
           box-sizing: border-box;
           transition: all 0.2s ease;
         }
 
         .signature-block:hover {
-          background: rgba(0, 123, 255, 0.2);
+          background: #2563EB29;
           border-color: #0056b3;
         }
 
         .signature-block.completed {
-          border-color: #28a745;
-          background: rgba(40, 167, 69, 0.1);
-          color: #28a745;
-        }
-
-        .signature-block.required {
-          border-color: #dc3545;
-          background: rgba(220, 53, 69, 0.1);
-          color: #dc3545;
+          font-family: 'Pacifico', cursive;
+          border-color: #16A34A;
+          background: #16A34A29;
+          color: #16A34A;
+          font-weight: 400;
         }
 
         .signature-block.initial {
@@ -326,8 +368,7 @@ class ESIGNComponent extends HTMLElement {
 
         .signature-modal-content {
           background: white;
-          padding: 20px;
-          border-radius: 8px;
+          border-radius: 16px;
           max-width: 500px;
           width: 90%;
           max-height: 80vh;
@@ -345,79 +386,145 @@ class ESIGNComponent extends HTMLElement {
         .signature-modal-buttons {
           display: flex;
           gap: 10px;
-          margin-top: 15px;
+          padding-top: 15px;
+          padding-bottom: 15px;
+          padding-right: 24px;
+          border-top: 1px solid #E5E7EB;
           justify-content: flex-end;
         }
 
         .modal-button {
-          padding: 8px 16px;
-          border: 1px solid #ccc;
-          border-radius: 4px;
+          height: 48px;
+          min-width: 80px;
+          padding: 0px 16px;
+          gap: 10px;
+          border: 1px solid #E5E7EB;
+          border-radius: 8px;
           cursor: pointer;
           background: white;
         }
 
-        .modal-button.primary {
-          background: #007bff;
-          color: white;
-          border-color: #007bff;
+        button.white-label {
+          background: ${this.whiteLabelSettings.buttonColor || "#007bff"};
+          color: ${this.whiteLabelSettings.buttonTextColor || "#FFFFFF"};
         }
 
-        .modal-button:hover {
+        button:hover:not(:disabled) {
           opacity: 0.8;
         }
 
-        .signature-progress {
-          margin: 10px 0;
-          padding: 10px;
-          background: #f8f9fa;
-          border-radius: 4px;
-          font-size: 14px;
+        .remaining-signatures {
+          font-size: 16px;
+          line-height: 24px;
+          color: #6B7280;
         }
 
-        .progress-bar {
-          width: 100%;
-          height: 8px;
-          background: #e9ecef;
-          border-radius: 4px;
-          overflow: hidden;
-          margin: 5px 0;
+        .footer {
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center;
+          padding-left: 24px;
+          padding-right: 24px;
+          padding-top: 13px;
+          border-top: 1px solid #E5E7EB;
         }
 
-        .progress-fill {
-          height: 100%;
-          background: #007bff;
-          transition: width 0.3s ease;
+        .consent-statement {
+          font-size: 12px; 
+          line-height: 18px; 
+          max-width: 400px; 
+          color: #1F2937;
+        }
+
+        input[type="checkbox"].white-label {
+          appearance: none;
+          height: 20px;
+          width: 20px;
+          flex-shrink: 0;
+          border: 1px solid #E5E7EB;
+          border-radius: 4px;
+          background: #FFFFFF;
+          cursor: pointer;
+          position: relative;
+        }
+
+        input[type="checkbox"].white-label::after {
+          content: "";
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 20px;
+          height: 20px;
+          transform: translate(-50%, -50%);
+          mask: url("icons/check.svg") no-repeat center center;
+          -webkit-mask: url("icons/check.svg") no-repeat center center;
+          mask-size: contain;
+          -webkit-mask-size: contain;
+          background-color: ${this.whiteLabelSettings.buttonTextColor || "#FFFFFF"};
+          opacity: 0;
+        }
+
+        input[type="checkbox"].white-label:checked {
+          background: ${this.whiteLabelSettings.buttonColor || "#007bff"};
+          border-color: ${this.whiteLabelSettings.buttonColor || "#007bff"};
+        }
+
+        input[type="checkbox"].white-label:checked::after {
+          opacity: 1;
+        }
+
+        input[type="text"]:focus,
+        input[type="text"]:hover {
+          outline: none;
+          box-shadow: 0 0 0 2px #E5E7EB;
         }
       </style>
 
       <div class="esign-container">
         <div class="dev-mode-badge">Dev Mode</div>
-        <h2>Document Signing</h2>
         
         <!-- Field Preview Section -->
         ${this.renderFieldPreview()}
-        
-        <!-- Signature Progress -->
-        <div class="signature-progress" id="signature-progress" style="display: none;">
-          <div>Signature Progress: <span id="progress-text">0/0</span></div>
-          <div class="progress-bar">
-            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
-          </div>
+
+        <!-- Header -->
+        <div class="pdf-controls">
+          <span class="page-info-controls">
+            <button id="prev-signature" disabled>
+              <img src="icons/arrow-left.svg" alt="Arrow Left" width="20px" height="20px"/>
+            </button>
+            <span class="pdf-page-info">Signature <span id="current-signature">1</span>/<span id="total-signatures">${
+              this.signatureBlocks.length ? this.signatureBlocks.length : 0
+            }</span></span>
+            <button id="next-signature" ${
+              !this.signatureBlocks.length || this.signatureBlocks.length <= 1
+              ? "disabled"
+              : ""
+            }>
+              <img src="icons/arrow-right.svg" alt="Arrow Right" width="20px" height="20px"/>
+            </button>
+          </span>
+          <span class ="pdf-zoom-controls">
+            <button id="zoom-out">
+              <img src="icons/minus.svg" alt="Minus" width="16px" height="16px"/>
+            </button>
+            <span class="pdf-zoom-info">100%</span>
+            <button id="zoom-in">
+              <img src="icons/plus.svg" alt="Plus" width="16px" height="16px"/>
+            </button>
+          </span>
         </div>
         
         <!-- PDF Container -->
         <div id="pdf-viewer-container" class="pdf-container">
           <div class="loading">Loading template configuration...</div>
         </div>
-        
-        <!-- Action Buttons -->
-        <div style="margin-top: 20px;">
-          <button id="start-signing" class="esign-button" style="display: none;" disabled>
-            Complete Signing
+
+        <!-- Footer -->
+        <div class="footer">
+          <div class="remaining-signatures">Signatures: <span id="progress-text">0/0</span></div>
+          <button id="start-signing" class="esign-button white-label" disabled>
+            Finish
           </button>
-          <div id="remaining-signatures" style="display: none; font-size: 12px; color: #666; margin-top: 5px; text-align: center;">
-          </div>
         </div>
       </div>
     `;
@@ -893,15 +1000,6 @@ class ESIGNComponent extends HTMLElement {
       const signButton = this.shadowRoot.querySelector("#start-signing");
       if (signButton) {
         signButton.textContent = "Signing Successful ✓";
-        signButton.style.backgroundColor = "#28a745"; // Green color for success
-      }
-
-      // Hide remaining signatures indicator when signing is complete
-      const remainingSignaturesDiv = this.shadowRoot.querySelector(
-        "#remaining-signatures"
-      );
-      if (remainingSignaturesDiv) {
-        remainingSignaturesDiv.style.display = "none";
       }
 
       // Dispatch custom event with signing result
@@ -918,7 +1016,6 @@ class ESIGNComponent extends HTMLElement {
       const signButton = this.shadowRoot.querySelector("#start-signing");
       if (signButton) {
         signButton.disabled = false;
-        signButton.textContent = "Complete Signing";
       }
 
       const event = new CustomEvent("signing-error", {
@@ -1044,36 +1141,20 @@ class ESIGNComponent extends HTMLElement {
 
       const pdf = await loadingTask.promise;
 
-      // Clear the container and add controls
       container.innerHTML = `
-        <div class="pdf-controls">
-          <button id="prev-signature" disabled>← Previous Signature</button>
-          <span class="pdf-page-info">Signature <span id="current-signature">1</span> of <span id="total-signatures">${
-            this.signatureBlocks ? this.signatureBlocks.length : 0
-          }</span></span>
-          <button id="next-signature" ${
-            !this.signatureBlocks || this.signatureBlocks.length <= 1
-              ? "disabled"
-              : ""
-          }>Next Signature →</button>
-          <button id="zoom-out">−</button>
-          <span class="pdf-zoom-info">100%</span>
-          <button id="zoom-in">+</button>
-        </div>
         <div id="pages-container"></div>
       `;
 
       // Get the containers and controls
-      const pagesContainer = container.querySelector("#pages-container");
+      const pagesContainer = this.shadowRoot.querySelector("#pages-container");
       const pdfContainer = this.shadowRoot.querySelector(".pdf-container");
-      const prevSignatureButton = container.querySelector("#prev-signature");
-      const nextSignatureButton = container.querySelector("#next-signature");
-      const zoomOutButton = container.querySelector("#zoom-out");
-      const zoomInButton = container.querySelector("#zoom-in");
-      const currentSignatureSpan =
-        container.querySelector("#current-signature");
-      const totalSignaturesSpan = container.querySelector("#total-signatures");
-      const zoomInfo = container.querySelector(".pdf-zoom-info");
+      const prevSignatureButton = this.shadowRoot.querySelector("#prev-signature");
+      const nextSignatureButton = this.shadowRoot.querySelector("#next-signature");
+      const zoomOutButton = this.shadowRoot.querySelector("#zoom-out");
+      const zoomInButton = this.shadowRoot.querySelector("#zoom-in");
+      const currentSignatureSpan = this.shadowRoot.querySelector("#current-signature");
+      const totalSignaturesSpan = this.shadowRoot.querySelector("#total-signatures");
+      const zoomInfo = this.shadowRoot.querySelector(".pdf-zoom-info");
 
       // Initialize signature navigation
       this.currentSignatureIndex = 0;
@@ -1245,16 +1326,6 @@ class ESIGNComponent extends HTMLElement {
           left: currentScrollLeft / pdfContainer.scrollWidth,
         };
 
-        // Show loading overlay
-        container.insertAdjacentHTML(
-          "afterbegin",
-          `
-          <div class="loading-overlay">
-            <div class="loading">Updating zoom...</div>
-          </div>
-        `
-        );
-
         // Update zoom
         this.currentZoom = newZoom;
         zoomInfo.textContent = `${Math.round(newZoom * 100)}%`;
@@ -1395,7 +1466,6 @@ class ESIGNComponent extends HTMLElement {
 
           // Set CSS classes based on block configuration
           const classes = ["signature-block"];
-          if (blockConfig.required) classes.push("required");
           if (blockConfig.type === "initial") classes.push("initial");
           if (blockConfig.completed) classes.push("completed");
 
@@ -1409,8 +1479,8 @@ class ESIGNComponent extends HTMLElement {
           } else {
             const label =
               blockConfig.type === "initial"
-                ? "Click to initial"
-                : "Click to sign";
+                ? "Click to Initial"
+                : "Click to Sign";
             signatureBlock.textContent = label;
             signatureBlock.style.cursor = "pointer";
           }
@@ -1536,8 +1606,8 @@ class ESIGNComponent extends HTMLElement {
 
     const title =
       blockConfig.type === "initial"
-        ? "Enter your initials"
-        : "Enter your signature";
+        ? "Enter Your Initials"
+        : "Enter Your Signature";
 
     // Count how many blocks of this type exist
     const blocksOfSameType = this.signatureBlocks.filter(
@@ -1546,39 +1616,48 @@ class ESIGNComponent extends HTMLElement {
     const showApplyToAllOption = blocksOfSameType.length > 1;
 
     modalContent.innerHTML = `
-      <h3>${title}</h3>
-      <div class="consent-statement" style="margin-bottom: 15px; font-size: 12px; line-height: 1.4; max-width: 400px; color: #555;">
-        By checking this box and clicking "${title.replace(
-          "Enter your ",
-          ""
-        )}", you (i) consent to conduct business electronically and to receive all related disclosures, agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, and (iii) agree that your electronic signature is legally binding and that you intend to electronically sign this document. You may withdraw your consent or request a paper copy by contacting us at support@joinworth.com or visiting www.joinworth.com.
-      </div>
-      <div style="margin-bottom: 10px;">
-        <label style="display: flex; align-items: center; cursor: pointer;">
-          <input type="checkbox" id="consent-checkbox" style="margin-right: 8px;" required>
-          <span style="font-size: 14px;">I agree to the terms above</span>
-        </label>
-      </div>
-      <input type="text" placeholder="Type your ${
-        blockConfig.type === "initial" ? "initials" : "name"
-      }" style="margin: 10px 0; padding: 5px; width: 100%;">
-      ${
-        showApplyToAllOption
+      <div style="font-family:'Figtree', sans-serif;">
+        <div style="font-size: 16px; line-height: 24px; font-weight: 500; color: #1F2937; border-bottom: 1px solid #E5E7EB;">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding-left: 24px; padding-right: 16px; padding-top: 16px; padding-bottom: 16px;">
+            <span>${title}</span>
+            <button class="cancel-button" style="background: none; border: none; cursor: pointer;">
+              <img src="icons/x-mark.svg" alt="Close" width="24px" height="24px"/>
+            </button>
+          </div>
+        </div>
+        <div style="font-size: 12px; line-height: 18px; color: #1F2937; padding-left: 24px; padding-right: 24px; padding-top: 16px; padding-bottom: 4px;">
+            Please type your ${blockConfig.type === "initial" ? "initials" : "name"} below. It will be used as your signature.*
+        </div>
+        <div style="padding-left: 24px; padding-right: 24px; padding-bottom: 12px;">
+          <input type="text" style="padding: 16px; width: 100%; border: 1px solid #E5E7EB; border-radius: 8px; box-sizing: border-box;">
+        </div>
+        <div style="padding-left: 24px; padding-right: 48px; padding-bottom: 24px;">
+        ${
+          showApplyToAllOption
           ? `
-      <div style="margin: 10px 0;">
-        <label style="display: flex; align-items: center; cursor: pointer;">
-          <input type="checkbox" id="apply-to-all-checkbox" style="margin-right: 8px;">
-          <span style="font-size: 14px;">Apply this ${blockConfig.type} to all ${blockConfig.type} blocks (${blocksOfSameType.length} total)</span>
-        </label>
-      </div>
-      `
+            <label style="display: flex; align-items: center; cursor: pointer; padding-bottom: 12px;">
+              <input type="checkbox" class="white-label" id="apply-to-all-checkbox"/>
+              <span style="font-size: 12px; line-height: 18px; color: #1F2937; padding-left: 8px;">
+                Apply this ${blockConfig.type} to all ${blockConfig.type} blocks (${blocksOfSameType.length} total)
+              </span>
+            </label>
+            `
           : ""
-      }
-      <div class="signature-modal-buttons">
-        <button class="modal-button cancel-button">Cancel</button>
-        <button class="modal-button primary" id="sign-button" disabled>${
-          blockConfig.type === "initial" ? "Initial" : "Sign"
-        }</button>
+        }
+          <label style="display: flex; cursor: pointer;">
+            <input type="checkbox" class="white-label" id="consent-checkbox" required/>
+            <span style="font-size: 12px; line-height: 18px; color: #1F2937; padding-left: 8px; padding-top: 4px;">
+              By checking this box and clicking "Sign", you (i) consent to conduct business electronically and to receive all related disclosures, 
+              agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, 
+              and (iii) agree that your electronic signature is legally binding and that you intend to electronically sign this document. 
+              You may withdraw your consent or request a paper copy by contacting us at support@joinworth.com or visiting www.joinworth.com.
+            </span>
+          </label>
+        </div>
+        <div class="signature-modal-buttons">
+          <button class="modal-button cancel-button">Cancel</button>
+          <button class="modal-button white-label" id="sign-button" disabled>Sign</button>
+        </div>
       </div>
     `;
 
@@ -1592,7 +1671,7 @@ class ESIGNComponent extends HTMLElement {
       "#apply-to-all-checkbox"
     );
     const signButton = modalContent.querySelector("#sign-button");
-    const cancelButton = modalContent.querySelector(".cancel-button");
+    const cancelButtons = modalContent.querySelectorAll(".cancel-button");
 
     // Focus input
     input.focus();
@@ -1606,8 +1685,10 @@ class ESIGNComponent extends HTMLElement {
     input.addEventListener("input", updateSignButtonState);
 
     // Handle cancel
-    cancelButton.addEventListener("click", () => {
-      modal.remove();
+    cancelButtons.forEach(cancelButton => {
+      cancelButton.addEventListener("click", () => {
+        modal.remove();
+      });
     });
 
     // Handle sign
@@ -1855,18 +1936,11 @@ class ESIGNComponent extends HTMLElement {
 
   // Add method to update signature status
   updateSignatureStatus() {
-    const progressContainer = this.shadowRoot.querySelector(
-      "#signature-progress"
-    );
     const progressText = this.shadowRoot.querySelector("#progress-text");
-    const progressFill = this.shadowRoot.querySelector("#progress-fill");
     const completeButton = this.shadowRoot.querySelector("#start-signing");
-    const remainingSignaturesDiv = this.shadowRoot.querySelector(
-      "#remaining-signatures"
-    );
 
     // Return early if elements don't exist yet
-    if (!progressContainer || !progressText || !progressFill) {
+    if (!progressText) {
       return;
     }
 
@@ -1877,20 +1951,9 @@ class ESIGNComponent extends HTMLElement {
     const completedSignatures = this.signatureBlocks
       ? this.signatureBlocks.filter((block) => block.completed).length
       : 0;
-    const remainingSignatures = totalSignatures - completedSignatures;
 
-    // Update progress text and bar
+    // Update progress text
     progressText.textContent = `${completedSignatures}/${totalSignatures}`;
-    const progressPercentage =
-      totalSignatures > 0 ? (completedSignatures / totalSignatures) * 100 : 0;
-    progressFill.style.width = `${progressPercentage}%`;
-
-    // Show/hide progress container based on whether we have signature blocks
-    if (totalSignatures > 0) {
-      progressContainer.style.display = "block";
-    } else {
-      progressContainer.style.display = "none";
-    }
 
     // Update complete button visibility and enable/disable state
     if (completeButton) {
@@ -1900,41 +1963,8 @@ class ESIGNComponent extends HTMLElement {
         // Check if all required signatures are complete
         const allComplete = this.areAllSignaturesComplete();
         completeButton.disabled = !allComplete;
-
-        if (allComplete) {
-          completeButton.textContent = "Complete Signing";
-          progressContainer.style.background = "#d4edda";
-          progressContainer.style.color = "#155724";
-
-          // Keep showing remaining signatures until signing process is complete
-          if (remainingSignaturesDiv && remainingSignatures > 0) {
-            remainingSignaturesDiv.textContent = `(${remainingSignatures} signature${
-              remainingSignatures === 1 ? "" : "s"
-            } remaining)`;
-            remainingSignaturesDiv.style.display = "block";
-          } else if (remainingSignaturesDiv && remainingSignatures === 0) {
-            remainingSignaturesDiv.style.display = "none";
-          }
-        } else {
-          completeButton.textContent = `Sign Document (${completedSignatures}/${totalSignatures})`;
-          progressContainer.style.background = "#f8f9fa";
-          progressContainer.style.color = "inherit";
-
-          // Show remaining signatures indicator
-          if (remainingSignaturesDiv && remainingSignatures > 0) {
-            remainingSignaturesDiv.textContent = `(${remainingSignatures} signature${
-              remainingSignatures === 1 ? "" : "s"
-            } remaining)`;
-            remainingSignaturesDiv.style.display = "block";
-          } else if (remainingSignaturesDiv && remainingSignatures === 0) {
-            remainingSignaturesDiv.style.display = "none";
-          }
-        }
       } else {
         completeButton.style.display = "none";
-        if (remainingSignaturesDiv) {
-          remainingSignaturesDiv.style.display = "none";
-        }
       }
     }
   }
