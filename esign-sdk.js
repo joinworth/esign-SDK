@@ -17,6 +17,11 @@ class ESIGNComponent extends HTMLElement {
     // Initialize signature navigation properties
     this.currentSignatureIndex = 0;
     this.orderedSignatureBlocks = [];
+
+    // Resolve icon paths
+    const sdkScript = document.currentScript;
+    const sdkBaseUrl = sdkScript ? sdkScript.src.replace(/\/[^\/]+$/, '/') : '';
+    this.iconBaseUrl = sdkBaseUrl + 'icons/';
   }
 
   // Add method to load PDF.js
@@ -141,6 +146,24 @@ class ESIGNComponent extends HTMLElement {
           font-weight: 500;
           border: none;
         }
+
+        @media (max-width: 768px) {
+          .esign-button {
+            min-width: 100px;
+            height: 44px;
+            font-size: 14px;
+            line-height: 20px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .esign-button {
+            min-width: 120px;
+            height: 40px;
+            font-size: 13px;
+            line-height: 18px;
+          }
+        }
         .esign-button:disabled {
           opacity: 40%;
           cursor: not-allowed;
@@ -231,11 +254,28 @@ class ESIGNComponent extends HTMLElement {
 
         .pdf-controls {
           display: flex;
+          flex-direction: row;
           padding-left: 24px;
           padding-right: 24px;
           padding-bottom: 13px;
           justify-content: space-between;
           align-items: center;
+        }
+
+        @media (max-width: 480px) {
+          .pdf-controls {
+            padding-left: 8px;
+            padding-right: 8px;
+            padding-bottom: 8px;
+            /* flex-direction: column; */
+            gap: 12px;
+          }
+        }
+
+        .page-info-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
 
         .page-info-controls button {
@@ -247,8 +287,26 @@ class ESIGNComponent extends HTMLElement {
           cursor: pointer;
         }
 
-        .pdf-controls button:hover {
-          background: #e9ecef;
+        @media (max-width: 768px) {
+          .page-info-controls button {
+            height: 40px;
+            width: 40px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .page-info-controls button {
+            height: 36px;
+            width: 36px;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .page-info-controls button {
+            height: 32px;
+            width: 32px;
+            font-size: 11px;
+          }
         }
 
         .pdf-controls button:disabled {
@@ -260,6 +318,28 @@ class ESIGNComponent extends HTMLElement {
           font-size: 16px;
           color: #6B7280;
           padding: 8px;
+          white-space: nowrap;
+        }
+
+        @media (max-width: 768px) {
+          .pdf-page-info {
+            font-size: 14px;
+            padding: 4px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .pdf-page-info {
+            font-size: 12px;
+            padding: 2px;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .pdf-page-info {
+            font-size: 11px;
+            padding: 0px;
+          }
         }
 
         .pdf-zoom-info {
@@ -267,7 +347,7 @@ class ESIGNComponent extends HTMLElement {
           height: 48px;
           width: 64px;
           font-size: 16px;
-          color: #1F2937
+          color: #1F2937;
           font-weight: 500;
           align-items: center;
           justify-content: center;
@@ -290,6 +370,45 @@ class ESIGNComponent extends HTMLElement {
           background: #FFFFFF;
           border: none;
           cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+          .pdf-zoom-info {
+            height: 40px;
+            width: 56px;
+            font-size: 14px;
+          }
+          
+          .pdf-zoom-controls button {
+            width: 40px;
+            height: 40px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .pdf-zoom-info {
+            height: 36px;
+            width: 48px;
+            font-size: 12px;
+          }
+          
+          .pdf-zoom-controls button {
+            width: 36px;
+            height: 36px;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .pdf-zoom-info {
+            height: 32px;
+            width: 40px;
+            font-size: 11px;
+          }
+          
+          .pdf-zoom-controls button {
+            width: 32px;
+            height: 32px;
+          }
         }
 
         .pdf-page {
@@ -419,6 +538,21 @@ class ESIGNComponent extends HTMLElement {
           color: #6B7280;
         }
 
+        @media (max-width: 768px) {
+          .remaining-signatures {
+            font-size: 14px;
+            line-height: 20px;
+            text-align: center;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .remaining-signatures {
+            font-size: 12px;
+            line-height: 18px;
+          }
+        }
+
         .footer {
           display: flex; 
           justify-content: space-between; 
@@ -429,11 +563,26 @@ class ESIGNComponent extends HTMLElement {
           border-top: 1px solid #E5E7EB;
         }
 
+        @media (max-width: 480px) {
+          .footer {
+            padding-left: 8px;
+            padding-right: 8px;
+            padding-top: 8px;
+          }
+        }
+
         .consent-statement {
           font-size: 12px; 
           line-height: 18px; 
           max-width: 400px; 
           color: #1F2937;
+        }
+
+        @media (max-width: 768px) {
+          .consent-statement {
+            font-size: 11px;
+            line-height: 16px;
+          }
         }
 
         input[type="checkbox"].white-label {
@@ -456,8 +605,8 @@ class ESIGNComponent extends HTMLElement {
           width: 20px;
           height: 20px;
           transform: translate(-50%, -50%);
-          mask: url("icons/check.svg") no-repeat center center;
-          -webkit-mask: url("icons/check.svg") no-repeat center center;
+          mask: url("${this.iconBaseUrl}check.svg") no-repeat center center;
+          -webkit-mask: url("${this.iconBaseUrl}check.svg") no-repeat center center;
           mask-size: contain;
           -webkit-mask-size: contain;
           background-color: ${this.whiteLabelSettings.buttonTextColor || "#FFFFFF"};
@@ -490,7 +639,7 @@ class ESIGNComponent extends HTMLElement {
         <div class="pdf-controls">
           <span class="page-info-controls">
             <button id="prev-signature" disabled>
-              <img src="icons/arrow-left.svg" alt="Arrow Left" width="20px" height="20px"/>
+              <img src="${this.iconBaseUrl}arrow-left.svg" alt="Arrow Left" width="20px" height="20px"/>
             </button>
             <span class="pdf-page-info">Signature <span id="current-signature">1</span>/<span id="total-signatures">${
               this.signatureBlocks.length ? this.signatureBlocks.length : 0
@@ -500,16 +649,16 @@ class ESIGNComponent extends HTMLElement {
               ? "disabled"
               : ""
             }>
-              <img src="icons/arrow-right.svg" alt="Arrow Right" width="20px" height="20px"/>
+              <img src="${this.iconBaseUrl}arrow-right.svg" alt="Arrow Right" width="20px" height="20px"/>
             </button>
           </span>
           <span class ="pdf-zoom-controls">
             <button id="zoom-out">
-              <img src="icons/minus.svg" alt="Minus" width="16px" height="16px"/>
+              <img src="${this.iconBaseUrl}minus.svg" alt="Minus" width="16px" height="16px"/>
             </button>
             <span class="pdf-zoom-info">100%</span>
             <button id="zoom-in">
-              <img src="icons/plus.svg" alt="Plus" width="16px" height="16px"/>
+              <img src="${this.iconBaseUrl}plus.svg" alt="Plus" width="16px" height="16px"/>
             </button>
           </span>
         </div>
@@ -1621,7 +1770,7 @@ class ESIGNComponent extends HTMLElement {
           <div style="display: flex; align-items: center; justify-content: space-between; padding-left: 24px; padding-right: 16px; padding-top: 16px; padding-bottom: 16px;">
             <span>${title}</span>
             <button class="cancel-button" style="background: none; border: none; cursor: pointer;">
-              <img src="icons/x-mark.svg" alt="Close" width="24px" height="24px"/>
+              <img src="${this.iconBaseUrl}x-mark.svg" alt="Close" width="24px" height="24px"/>
             </button>
           </div>
         </div>
