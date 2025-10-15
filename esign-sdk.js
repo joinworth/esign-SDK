@@ -57,7 +57,7 @@ class ESIGNComponent extends HTMLElement {
       `
     };
   }
-
+  
   // Convert SVG to data URI for use in CSS/attributes
   getIconDataUri(iconName, strokeColor) {
     let iconSvg = this.ICONS[iconName];
