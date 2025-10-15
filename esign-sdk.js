@@ -18,10 +18,56 @@ class ESIGNComponent extends HTMLElement {
     this.currentSignatureIndex = 0;
     this.orderedSignatureBlocks = [];
 
-    // Resolve icon paths
-    const sdkScript = document.currentScript;
-    const sdkBaseUrl = sdkScript ? sdkScript.src.replace(/\/[^\/]+$/, '/') : '';
-    this.iconBaseUrl = sdkBaseUrl + 'icons/';
+    // SVGs from heroicons library
+    this.ICONS = {
+      ARROW_LEFT: `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
+          <path fill-rule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clip-rule="evenodd" />
+        </svg>
+      `,
+
+      ARROW_RIGHT: `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
+          <path fill-rule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.23 5.29a.75.75 0 1 1 1.04-1.08l5.5 5.25a.75.75 0 0 1 0 1.08l-5.5 5.25a.75.75 0 1 1-1.04-1.08l4.158-3.96H3.75A.75.75 0 0 1 3 10Z" clip-rule="evenodd" />
+        </svg>
+      `,
+
+      CHECK: `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
+          <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" />
+        </svg>
+      `,
+
+      MINUS: `
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+        </svg>
+      `,
+
+      PLUS: `
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+      `,
+
+      X_MARK: `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-5">
+          <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+        </svg>
+      `
+    };
+  }
+  
+  // Convert SVG to data URI for use in CSS/attributes
+  getIconDataUri(iconName, strokeColor) {
+    let iconSvg = this.ICONS[iconName];
+
+    if (strokeColor) {
+      iconSvg = iconSvg.replace('stroke="currentColor"', `stroke="${strokeColor}"`);
+    }
+
+    const base64 = btoa(iconSvg);
+    return `data:image/svg+xml;base64,${base64}`;
   }
 
   // Add method to load PDF.js
@@ -243,6 +289,7 @@ class ESIGNComponent extends HTMLElement {
           margin: 0 auto;
           padding: 7px;
           max-width: none;
+          position: relative;
         }
         
         .loading {
@@ -409,21 +456,6 @@ class ESIGNComponent extends HTMLElement {
             width: 32px;
             height: 32px;
           }
-        }
-
-        .pdf-page {
-          position: relative;
-        }
-
-        .page-number {
-          position: absolute;
-          bottom: 10px;
-          right: 10px;
-          background: #F3F4F6;
-          color: #1F2937;
-          padding: 7px 8px;
-          border-radius: 100px;
-          font-size: 12px;
         }
 
         .signature-block {
@@ -605,8 +637,8 @@ class ESIGNComponent extends HTMLElement {
           width: 20px;
           height: 20px;
           transform: translate(-50%, -50%);
-          mask: url("${this.iconBaseUrl}check.svg") no-repeat center center;
-          -webkit-mask: url("${this.iconBaseUrl}check.svg") no-repeat center center;
+          mask: url("${this.getIconDataUri("CHECK")}") no-repeat center center;
+          -webkit-mask: url("${this.getIconDataUri("CHECK")}") no-repeat center center;
           mask-size: contain;
           -webkit-mask-size: contain;
           background-color: ${this.whiteLabelSettings.buttonTextColor || "#FFFFFF"};
@@ -639,7 +671,7 @@ class ESIGNComponent extends HTMLElement {
         <div class="pdf-controls">
           <span class="page-info-controls">
             <button id="prev-signature" disabled>
-              <img src="${this.iconBaseUrl}arrow-left.svg" alt="Arrow Left" width="20px" height="20px"/>
+              <img src="${this.getIconDataUri("ARROW_LEFT")}" alt="Arrow Left" width="20px" height="20px"/>
             </button>
             <span class="pdf-page-info">Signature <span id="current-signature">1</span>/<span id="total-signatures">${
               this.signatureBlocks.length ? this.signatureBlocks.length : 0
@@ -649,16 +681,16 @@ class ESIGNComponent extends HTMLElement {
               ? "disabled"
               : ""
             }>
-              <img src="${this.iconBaseUrl}arrow-right.svg" alt="Arrow Right" width="20px" height="20px"/>
+              <img src="${this.getIconDataUri("ARROW_RIGHT")}" alt="Arrow Right" width="20px" height="20px"/>
             </button>
           </span>
           <span class ="pdf-zoom-controls">
             <button id="zoom-out">
-              <img src="${this.iconBaseUrl}minus.svg" alt="Minus" width="16px" height="16px"/>
+              <img src="${this.getIconDataUri("MINUS")}" alt="Minus" width="16px" height="16px"/>
             </button>
             <span class="pdf-zoom-info">100%</span>
             <button id="zoom-in">
-              <img src="${this.iconBaseUrl}plus.svg" alt="Plus" width="16px" height="16px"/>
+              <img src="${this.getIconDataUri("PLUS")}" alt="Plus" width="16px" height="16px"/>
             </button>
           </span>
         </div>
@@ -1566,7 +1598,7 @@ class ESIGNComponent extends HTMLElement {
         <div class="loading">
           Loading page ${pageNum}...
         </div>
-        <div class="page-number">Page ${pageNum}</div>
+        <div class="page-number"/>
       `;
       container.appendChild(pageContainer);
 
@@ -1770,7 +1802,7 @@ class ESIGNComponent extends HTMLElement {
           <div style="display: flex; align-items: center; justify-content: space-between; padding-left: 24px; padding-right: 16px; padding-top: 16px; padding-bottom: 16px;">
             <span>${title}</span>
             <button class="cancel-button" style="background: none; border: none; cursor: pointer;">
-              <img src="${this.iconBaseUrl}x-mark.svg" alt="Close" width="24px" height="24px"/>
+              <img src="${this.getIconDataUri("X_MARK")}" alt="Close" width="24px" height="24px"/>
             </button>
           </div>
         </div>
