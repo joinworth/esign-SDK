@@ -139,6 +139,16 @@ class ESIGNComponent extends HTMLElement {
 
     // Get white label settings. If none provided, use default settings.
     let whiteLabelSettings = this.getAttribute("white-label-settings") || {};
+    console.log(whiteLabelSettings);
+    
+    if (typeof whiteLabelSettings === "string") {
+      try {
+        whiteLabelSettings = JSON.parse(whiteLabelSettings);
+      } 
+      catch (error) {
+        whiteLabelSettings = {};
+      }
+    }
 
     // Store session data
     this.templateId = sessionDetails.templateId;
