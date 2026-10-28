@@ -3,7 +3,7 @@
 // and field population capabilities.
 
 // Default e-sign consent paragraph. White-label customers can replace it with
-// `consentText` in the white-label-settings attribute.
+// the `consent-text` attribute.
 const DEFAULT_CONSENT_TEXT =
   'By checking this box and clicking "Sign", you (i) consent to conduct business electronically and to receive all related disclosures, ' +
   "agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, " +
@@ -1856,11 +1856,11 @@ class ESIGNComponent extends HTMLElement {
     modal.appendChild(modalContent);
     this.shadowRoot.appendChild(modal);
 
-    // Custom consent copy from white-label settings replaces the default paragraph.
+    // Custom consent copy from the consent-text attribute replaces the default paragraph.
     // Set via textContent so customer-supplied copy is never parsed as HTML.
-    const customConsentText = this.whiteLabelSettings.consentText;
+    const customConsentText = this.getAttribute("consent-text");
     modalContent.querySelector(".consent-text").textContent =
-      typeof customConsentText === "string" && customConsentText.trim()
+      customConsentText && customConsentText.trim()
         ? customConsentText.trim()
         : DEFAULT_CONSENT_TEXT;
 
