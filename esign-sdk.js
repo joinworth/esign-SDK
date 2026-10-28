@@ -2,6 +2,14 @@
 // This component handles document signing workflows with template-based document generation
 // and field population capabilities.
 
+// Default e-sign consent paragraph. White-label customers can replace it with
+// `consentText` in the white-label-settings attribute.
+const DEFAULT_CONSENT_TEXT =
+  'By checking this box and clicking "Sign", you (i) consent to conduct business electronically and to receive all related disclosures, ' +
+  "agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, " +
+  "and (iii) agree that your electronic signature is legally binding and that you intend to electronically sign this document. " +
+  "You may withdraw your consent or request a paper copy by contacting us at support@joinworth.com or visiting www.joinworth.com.";
+
 class ESIGNComponent extends HTMLElement {
   constructor() {
     super();
@@ -1835,12 +1843,7 @@ class ESIGNComponent extends HTMLElement {
         }
           <label style="display: flex; cursor: pointer;">
             <input type="checkbox" class="white-label" id="consent-checkbox" required/>
-            <span style="font-size: 12px; line-height: 18px; color: #1F2937; padding-left: 8px; padding-top: 4px;">
-              By checking this box and clicking "Sign", you (i) consent to conduct business electronically and to receive all related disclosures, 
-              agreements, and records in electronic form, (ii) acknowledge that you have access to retain or print electronic records, 
-              and (iii) agree that your electronic signature is legally binding and that you intend to electronically sign this document. 
-              You may withdraw your consent or request a paper copy by contacting us at support@joinworth.com or visiting www.joinworth.com.
-            </span>
+            <span class="consent-text" style="font-size: 12px; line-height: 18px; color: #1F2937; padding-left: 8px; padding-top: 4px;"></span>
           </label>
         </div>
         <div class="signature-modal-buttons">
@@ -1852,6 +1855,14 @@ class ESIGNComponent extends HTMLElement {
 
     modal.appendChild(modalContent);
     this.shadowRoot.appendChild(modal);
+
+    // Custom consent copy from white-label settings replaces the default paragraph.
+    // Set via textContent so customer-supplied copy is never parsed as HTML.
+    const customConsentText = this.whiteLabelSettings.consentText;
+    modalContent.querySelector(".consent-text").textContent =
+      typeof customConsentText === "string" && customConsentText.trim()
+        ? customConsentText.trim()
+        : DEFAULT_CONSENT_TEXT;
 
     // Get references to form elements
     const input = modalContent.querySelector("input[type='text']");

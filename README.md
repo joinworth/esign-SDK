@@ -158,6 +158,19 @@ The response includes:
 | session-token | Yes      | -                        | JWT token from the session API |
 | service-url   | No       | https://api.esign.com/v1 | Base URL for the signing API   |
 | dev-mode      | No       | false                    | Enable development mode        |
+| white-label-settings | No | `{}` | JSON string of branding settings (see below) |
+
+#### White-label settings
+
+`white-label-settings` accepts a JSON string:
+
+| Key             | Default                         | Description                                                                                  |
+| --------------- | ------------------------------- | -------------------------------------------------------------------------------------------- |
+| buttonColor     | `#007bff`                       | Button background color                                                                      |
+| buttonTextColor | `#FFFFFF`                       | Button text color                                                                            |
+| consentText     | Worth default consent paragraph | Replaces the consent paragraph in the initials/signature modal. Rendered as plain text, not HTML. |
+
+Custom `consentText` replaces the whole paragraph, so it should include the required ESIGN disclosures (paper copy, withdrawal of consent, contact details) for the customer.
 
 ### Security Considerations
 
