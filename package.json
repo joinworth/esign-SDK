@@ -5,7 +5,7 @@
   "main": "esign-sdk.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "live-server"
+    "dev": "live-server --port=8081"
   },
   "keywords": [
     "esign",

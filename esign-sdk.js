@@ -1781,6 +1781,48 @@ class ESIGNComponent extends HTMLElement {
   }
 
   /**
+   * Fills an element with consent copy, rendering URLs and email addresses as links.
+   * Builds DOM nodes instead of HTML so customer-supplied copy is never parsed as markup.
+   * @param {HTMLElement} target Element to fill
+   * @param {string} text Consent copy
+   */
+  renderConsentText(target, text) {
+    const linkPattern =
+      /(https?:\/\/[^\s<>"]+|www\.[^\s<>"]+)|([A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})/g;
+
+    target.textContent = "";
+    let lastIndex = 0;
+
+    for (const match of text.matchAll(linkPattern)) {
+      // Leave sentence punctuation outside the link
+      const linkText = match[0].replace(/[.,;:!?)\]]+$/, "");
+      const isEmail = Boolean(match[2]);
+
+      if (match.index > lastIndex) {
+        target.append(text.slice(lastIndex, match.index));
+      }
+
+      const link = document.createElement("a");
+      link.textContent = linkText;
+      link.href = isEmail
+        ? `mailto:${linkText}`
+        : /^https?:\/\//i.test(linkText)
+          ? linkText
+          : `https://${linkText}`;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.style.color = this.whiteLabelSettings.buttonColor || "#007bff";
+      target.append(link);
+
+      lastIndex = match.index + linkText.length;
+    }
+
+    if (lastIndex < text.length) {
+      target.append(text.slice(lastIndex));
+    }
+  }
+
+  /**
    * Shows the signature modal for capturing user signature/initial
    * @param {Object} blockConfig Configuration object for the signature block
    * @param {HTMLElement} signatureElement DOM element for the signature block
@@ -1857,12 +1899,15 @@ class ESIGNComponent extends HTMLElement {
     this.shadowRoot.appendChild(modal);
 
     // Custom consent copy from the consent-text attribute replaces the default paragraph.
-    // Set via textContent so customer-supplied copy is never parsed as HTML.
+    // Rendered as DOM nodes so customer-supplied copy is never parsed as HTML;
+    // URLs and emails in it become links.
     const customConsentText = this.getAttribute("consent-text");
-    modalContent.querySelector(".consent-text").textContent =
+    this.renderConsentText(
+      modalContent.querySelector(".consent-text"),
       customConsentText && customConsentText.trim()
         ? customConsentText.trim()
-        : DEFAULT_CONSENT_TEXT;
+        : DEFAULT_CONSENT_TEXT
+    );
 
     // Get references to form elements
     const input = modalContent.querySelector("input[type='text']");
