@@ -1812,6 +1812,8 @@ class ESIGNComponent extends HTMLElement {
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       link.style.color = this.whiteLabelSettings.buttonColor || "#007bff";
+      // The copy sits inside the consent checkbox's <label>; keep link clicks from toggling it
+      link.addEventListener("click", (event) => event.stopPropagation());
       target.append(link);
 
       lastIndex = match.index + linkText.length;
