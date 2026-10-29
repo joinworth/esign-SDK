@@ -48,8 +48,10 @@ jobs:
           fi
 
           LATEST_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
-          LATEST=${LATEST_TAG#v}
-          if [ -z "$LATEST" ]; then LATEST=$(node -p "require('./package.json').version"); fi
+          # Take the higher of the latest tag and package.json so that merging several PRs
+          # before a draft is published doesn't recompute (and collide on) the same version.
+          PKG=$(node -p "require('./package.json').version")
+          LATEST=$(printf '%s\n%s\n' "${LATEST_TAG#v}" "$PKG" | sort -V | tail -n 1)
 
           IFS=. read -r MAJOR MINOR PATCH <<< "$LATEST"
           case "$BUMP" in
