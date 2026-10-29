@@ -1,0 +1,89 @@
+name: Release draft
+
+# On every merged PR: bump package.json, push the bump commit to main, and open a draft release for
+# the new version. The draft's tag is created when the release is published (the app loads
+# esign-sdk.js off the tag via jsDelivr, so publishing the draft is what ships it).
+#
+# Bump size comes from the PR's labels: `major`, `minor`, otherwise `patch`.
+# The next version is computed from the highest existing v* tag, not package.json, because
+# package.json lagged the tags before this workflow existed.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+# Serialize runs so two quick merges cannot compute the same version.
+concurrency:
+  group: release-draft
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release-draft:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0 # full history and tags, needed to find the latest version
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Compute next version
+        id: version
+        run: |
+          if echo "$PR_LABELS" | jq -e 'index("major")' >/dev/null; then BUMP=major
+          elif echo "$PR_LABELS" | jq -e 'index("minor")' >/dev/null; then BUMP=minor
+          else BUMP=patch
+          fi
+
+          LATEST_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
+          # Take the higher of the latest tag and package.json so that merging several PRs
+          # before a draft is published doesn't recompute (and collide on) the same version.
+          PKG=$(node -p "require('./package.json').version")
+          LATEST=$(printf '%s\n%s\n' "${LATEST_TAG#v}" "$PKG" | sort -V | tail -n 1)
+
+          IFS=. read -r MAJOR MINOR PATCH <<< "$LATEST"
+          case "$BUMP" in
+            major) NEXT="$((MAJOR + 1)).0.0" ;;
+            minor) NEXT="${MAJOR}.$((MINOR + 1)).0" ;;
+            patch) NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+          esac
+
+          echo "Bumping $LATEST -> $NEXT ($BUMP, PR #$PR_NUMBER)"
+          echo "previous_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+
+      - name: Bump package.json and push to main
+        id: bump
+        run: |
+          npm version "${{ steps.version.outputs.next }}" --no-git-tag-version --allow-same-version
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(release): v${{ steps.version.outputs.next }} [skip ci]"
+          git push origin HEAD:main
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release
+        run: |
+          NEXT="${{ steps.version.outputs.next }}"
+          PREV="${{ steps.version.outputs.previous_tag }}"
+          ARGS=()
+          if [ -n "$PREV" ]; then ARGS+=(--notes-start-tag "$PREV"); fi
+          gh release create "v$NEXT" \
+            --draft \
+            --target "${{ steps.bump.outputs.sha }}" \
+            --title "v$NEXT" \
+            --generate-notes \
+            "${ARGS[@]}"
