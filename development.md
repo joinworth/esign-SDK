@@ -150,7 +150,11 @@ sequenceDiagram
 - **API Endpoint**: `GET /v1/templates/{templateId}/config`
 - **Response Format**: Contains signature blocks with positioning, types, and requirements
 - **Signature Types**: "signature" and "initial" types supported
-- **Dynamic Positioning**: X,Y coordinates as percentages with width/height dimensions
+- **Dynamic Positioning**: `defaultX`/`defaultY` are percentages of the page; `defaultWidth`/`defaultHeight` are PDF points, the same units the back end stamps with. The preview scales the box by the rendered page's scale, so it matches the signed PDF at any width and zoom
+- **Signature Image Options** (optional, per signature):
+  - `fit`: `"stretch"` (default) or `"contain"`. `contain` draws the image with the box's proportions, so the stamp isn't distorted
+  - `align`: `"left"`, `"center"` (default) or `"right"`, the text's position in the box
+  - Without either, the SDK sends the legacy 200x50 centered image, so existing templates sign exactly as before
 - **Backward Compatibility**: Falls back to session token signature blocks if template config fails
 
 ### Multi-Signature Management
