@@ -507,7 +507,14 @@ class ESIGNComponent extends HTMLElement {
 
         .signature-block.initial {
           border-style: dotted;
-          font-size: 10px;
+        }
+
+        .signature-block .signature-image {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
         }
 
         .signature-block.highlighted {
@@ -1095,6 +1102,9 @@ class ESIGNComponent extends HTMLElement {
           },
           type: config.type,
           required: config.required,
+          // Optional; unset keeps the legacy 200x50 centered, stretched image.
+          align: config.align,
+          fit: config.fit,
           completed: false,
         });
       });
@@ -1137,8 +1147,8 @@ class ESIGNComponent extends HTMLElement {
 
       // Prepare signatures array for the API
       const signatures = completedSignatures.map((block) => ({
-        signatureImage: `data:image/png;base64,${this.generateMockSignatureImage(
-          block.signatureText
+        signatureImage: `data:image/png;base64,${this.generateSignatureImage(
+          block
         )}`,
         position: {
           pageNumber: block.page,
@@ -1225,7 +1235,84 @@ class ESIGNComponent extends HTMLElement {
   }
 
   /**
-   * Generates a mock base64 signature image for development mode
+   * Resolves a block's box the way the back end does when it stamps (sessions.ts):
+   * x/y as % of the page, width/height in PDF points, same fallbacks.
+   * @param {Object} block Signature block
+   * @returns {{x: number, y: number, width: number, height: number}}
+   */
+  getBlockGeometry(block) {
+    return {
+      x: block.position?.x ?? 50,
+      y: block.position?.y ?? 50,
+      width: block.dimensions?.width ?? 200,
+      height: block.dimensions?.height ?? 50,
+    };
+  }
+
+  /**
+   * Picks the image the back end stamps. Blocks without align/fit get the legacy
+   * image byte for byte, so existing templates sign exactly as before.
+   * @param {Object} block Signature block with signatureText
+   * @returns {string} Base64 encoded PNG
+   */
+  generateSignatureImage(block) {
+    if (!block.align && !block.fit) {
+      return this.generateMockSignatureImage(block.signatureText);
+    }
+    return this.generateFittedSignatureImage(block);
+  }
+
+  /**
+   * Draws the text on a canvas with the box's own aspect ratio, so the back end's
+   * stretch to width x height scales it uniformly instead of distorting it.
+   */
+  generateFittedSignatureImage(block) {
+    const { width, height } = this.getBlockGeometry(block);
+    const text = block.signatureText || "Signature";
+    const align = ["left", "right"].includes(block.align) ? block.align : "center";
+    // fit "stretch" keeps the legacy canvas and only moves the text horizontally.
+    const contain = block.fit === "contain";
+    const resolution = 4;
+    const canvas = document.createElement("canvas");
+    canvas.width = contain ? Math.round(width * resolution) : 200;
+    canvas.height = contain ? Math.round(height * resolution) : 50;
+    const ctx = canvas.getContext("2d");
+
+    const padding = canvas.width * 0.03;
+    let fontSize = contain ? canvas.height * 0.6 : 18;
+    ctx.font = `${fontSize}px cursive`;
+    const measured = ctx.measureText(text).width;
+    const maxWidth = canvas.width - padding * 2;
+    if (contain && measured > maxWidth) {
+      fontSize = (fontSize * maxWidth) / measured;
+      ctx.font = `${fontSize}px cursive`;
+    }
+
+    ctx.fillStyle = "#000";
+    ctx.textAlign = align;
+    ctx.textBaseline = "middle";
+    const x =
+      align === "left" ? padding : align === "right" ? canvas.width - padding : canvas.width / 2;
+    ctx.fillText(text, x, canvas.height / 2);
+
+    return canvas.toDataURL("image/png").split(",")[1];
+  }
+
+  /**
+   * Shows the exact image the back end will stamp, stretched to the box like
+   * pdf-lib's drawImage, so the preview matches the signed PDF.
+   */
+  renderSignedContent(element, blockConfig) {
+    element.textContent = "";
+    const img = document.createElement("img");
+    img.className = "signature-image";
+    img.alt = blockConfig.signatureText || "";
+    img.src = `data:image/png;base64,${this.generateSignatureImage(blockConfig)}`;
+    element.appendChild(img);
+  }
+
+  /**
+   * Generates the legacy signature image: 200x50, 18px cursive, centered
    * @param {string} signatureText The text that was signed
    * @returns {string} Base64 encoded signature image
    */
@@ -1670,8 +1757,7 @@ class ESIGNComponent extends HTMLElement {
 
           // Set content based on type and completion status
           if (blockConfig.completed) {
-            signatureBlock.textContent =
-              blockConfig.signatureText || "✓ Signed";
+            this.renderSignedContent(signatureBlock, blockConfig);
             signatureBlock.style.cursor = "default";
           } else {
             const label =
@@ -1683,10 +1769,15 @@ class ESIGNComponent extends HTMLElement {
           }
 
           // Position and size the block
-          signatureBlock.style.left = `${blockConfig.position.x}%`;
-          signatureBlock.style.top = `${blockConfig.position.y}%`;
-          signatureBlock.style.width = `${blockConfig.dimensions.width}px`;
-          signatureBlock.style.height = `${blockConfig.dimensions.height}px`;
+          // The back end reads x/y as % of the page and width/height as PDF points,
+          // so map both onto the rendered canvas (offset by .pdf-page's padding).
+          const box = this.getBlockGeometry(blockConfig);
+          const boxHeight = box.height * scale;
+          signatureBlock.style.left = `${canvas.offsetLeft + (box.x / 100) * scaledViewport.width}px`;
+          signatureBlock.style.top = `${canvas.offsetTop + (box.y / 100) * scaledViewport.height}px`;
+          signatureBlock.style.width = `${box.width * scale}px`;
+          signatureBlock.style.height = `${boxHeight}px`;
+          signatureBlock.style.fontSize = `${Math.min(14, Math.max(8, boxHeight * 0.45))}px`;
           signatureBlock.style.textAlign = "center";
 
           // Store reference to the configuration
@@ -2004,7 +2095,7 @@ class ESIGNComponent extends HTMLElement {
     blockConfig.timestamp = capturedSignature.timestamp;
 
     // Update DOM element
-    signatureElement.textContent = capturedSignature.text;
+    this.renderSignedContent(signatureElement, blockConfig);
     signatureElement.className =
       signatureElement.className.replace("required", "") + " completed";
     signatureElement.style.cursor = "default";
@@ -2078,7 +2169,7 @@ class ESIGNComponent extends HTMLElement {
     blockConfig.autoApplied = true;
 
     // Update DOM element
-    signatureElement.textContent = capturedSignature.text;
+    this.renderSignedContent(signatureElement, blockConfig);
     signatureElement.className =
       signatureElement.className.replace("required", "") + " completed";
     signatureElement.style.cursor = "default";
